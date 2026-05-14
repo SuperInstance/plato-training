@@ -34,6 +34,19 @@ from .types import (
     TrainingTile, TileType, TileLifecycle, LamportClock,
     content_hash, TrainingMetrics,
 )
+
+# Per-task minimum accuracy floors (Claude's recommendation)
+# Models below these thresholds refuse to ship
+TASK_ACCURACY_FLOORS = {
+    "drift-detect": 0.90,
+    "anomaly-flag": 0.80,
+    "intent-detect": 0.80,
+    "sentiment": 0.70,
+    "spam-classify": 0.55,
+    "topic-classify": 0.60,
+    "priority-rank": 0.50,
+    "tile-relevance": 0.50,
+}
 from .store import LocalTileStore
 from .low_rank import recommend_variant
 
@@ -102,6 +115,7 @@ class MicroRoom:
         # Invocation log
         self.invocations: List[Invocation] = []
         self._device = next(self.model.parameters()).device
+        self.actual_target = str(self._device)  # What we ACTUALLY got (Claude: surface target mismatch)
         
         # Store
         self.store = LocalTileStore(store_dir)
@@ -156,6 +170,12 @@ class MicroRoom:
             "latency_ms": round(latency, 3),
             "lamport": self.clock.now(),
             "all_probs": {class_names[i]: round(p, 4) for i, p in enumerate(probs[0].tolist())},
+            "health": {
+                "invocations_since_deploy": len(self.invocations),
+                "meets_floor": self._deployed.metrics.get("accuracy", 0) >= TASK_ACCURACY_FLOORS.get(self.task, 0.5),
+                "deploy_accuracy": round(self._deployed.metrics.get("accuracy", 0), 4),
+                "floor": TASK_ACCURACY_FLOORS.get(self.task, 0.5),
+            },
         }
     
     def predict_batch(self, x: torch.Tensor) -> List[Dict]:

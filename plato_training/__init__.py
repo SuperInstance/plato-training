@@ -30,5 +30,7 @@ from .low_rank import LowRankLinear, LowRankClassifier, inject_low_rank, recomme
 from .hierarchical_spline import HierarchicalSplineLinear, HierarchicalSplineClassifier
 from .micro_models import train_micro, list_tasks, TASK_REGISTRY
 from .hardware import deploy_micro, PROFILES, generate_room_spec
+from .data_rooms import DataRoom, DataSpec
+from .micro_room import MicroRoom, RoomFactory
 
-__version__ = "0.6.0"
+__version__ = "0.8.0"
