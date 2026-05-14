@@ -16,6 +16,8 @@ dependencies = [
 
 [project.optional-dependencies]
 tensorflow = ["tensorflow>=2.13"]
+hf = ["transformers>=4.30", "scikit-learn>=1.2"]
+all = ["plato-training[tensorflow,hf]"]
 dev = ["pytest>=7"]
 
 [project.scripts]

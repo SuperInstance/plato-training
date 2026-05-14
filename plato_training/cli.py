@@ -14,33 +14,35 @@ from __future__ import annotations
 import argparse
 import csv
 import json
-import os
+import re
 import sys
 import time
+from collections import Counter
 from pathlib import Path
-from typing import Optional
+from typing import Dict, List, Optional, Tuple
 
 import torch
 import torch.nn as nn
 from torch.utils.data import Dataset
 
-from .types import (
-    AdapterConfig,
-    TrainingConfig,
-    TileLifecycle,
-    TileType,
-)
+from .types import AdapterConfig, TrainingConfig, TileLifecycle, TileType
 from .store import LocalTileStore
 from .throttle import TrainingThrottle, ThrottleLevel
 from .pytorch_room import PyTorchRoom
 
 
 # ---------------------------------------------------------------------------
-# Built-in model registry
+# Built-in models
 # ---------------------------------------------------------------------------
 
+
 class _SimpleClassifier(nn.Module):
-    """Lightweight linear classifier used as the default built-in model."""
+    """
+    Lightweight MLP classifier.
+
+    W_query / W_value / out_head naming matches the default LoRA target_modules
+    in AdapterConfig so LoRA layers inject without extra configuration.
+    """
 
     def __init__(self, in_features: int = 128, hidden: int = 256, num_classes: int = 2):
         super().__init__()
@@ -48,43 +50,41 @@ class _SimpleClassifier(nn.Module):
         self.W_value = nn.Linear(hidden, hidden)
         self.out_head = nn.Linear(hidden, num_classes)
         self.act = nn.GELU()
+        self.drop = nn.Dropout(0.1)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self.act(self.W_query(x))
-        x = self.act(self.W_value(x))
+        x = self.drop(self.act(self.W_value(x)))
         return self.out_head(x)
 
 
-_BUILTIN_MODELS = {
-    "simple-classifier": _SimpleClassifier,
-}
+class _HFWrapper(nn.Module):
+    """
+    Wraps a HuggingFace SequenceClassification model for PyTorchRoom.
+
+    PyTorchRoom passes batch[0] directly to model() and expects a logit tensor.
+    HF models return a dataclass; this wrapper extracts .logits.
+    """
+
+    def __init__(self, model: nn.Module):
+        super().__init__()
+        self.model = model
+
+    def forward(self, input_ids: torch.Tensor) -> torch.Tensor:
+        return self.model(input_ids=input_ids).logits
 
 
-def _load_model(model_name: str) -> nn.Module:
-    """Return an nn.Module for the given name or file path."""
-    if model_name in _BUILTIN_MODELS:
-        return _BUILTIN_MODELS[model_name]()
-
-    path = Path(model_name)
-    if path.exists():
-        obj = torch.load(str(path), map_location="cpu", weights_only=False)
-        if isinstance(obj, nn.Module):
-            return obj
-        raise ValueError(
-            f"File '{path}' did not contain an nn.Module (got {type(obj).__name__})"
-        )
-
-    raise ValueError(
-        f"Unknown model '{model_name}'. "
-        f"Provide a path to a saved nn.Module or one of: {list(_BUILTIN_MODELS)}"
-    )
+_BUILTIN_MODELS = {"simple-classifier"}
 
 
 # ---------------------------------------------------------------------------
-# Dataset loaders
+# Datasets
 # ---------------------------------------------------------------------------
 
-class _TensorDataset(Dataset):
+
+class _FloatDataset(Dataset):
+    """Numeric or TF-IDF-vectorised dataset."""
+
     def __init__(self, X: torch.Tensor, y: torch.Tensor):
         self.X = X
         self.y = y
@@ -92,153 +92,310 @@ class _TensorDataset(Dataset):
     def __len__(self) -> int:
         return len(self.X)
 
-    def __getitem__(self, idx):
+    def __getitem__(self, idx: int) -> Tuple[torch.Tensor, torch.Tensor]:
         return self.X[idx], self.y[idx]
 
 
-def _load_csv(path: str) -> _TensorDataset:
-    """Load a CSV file. All columns except the last are features; last is label."""
-    rows = []
-    with open(path, newline="", encoding="utf-8") as fh:
-        reader = csv.reader(fh)
-        header = next(reader, None)  # skip header if present
-        # If every value in the header row is numeric, treat it as data
-        try:
-            first_row = [float(v) for v in header]
-            rows.append(first_row)
-        except (TypeError, ValueError):
-            pass  # it was a real header
-        for row in reader:
-            try:
-                rows.append([float(v) for v in row])
-            except ValueError:
-                continue  # skip malformed rows
+class _TokenDataset(Dataset):
+    """Integer token-id dataset for HuggingFace text models."""
 
-    if not rows:
-        raise ValueError(f"No numeric data found in '{path}'")
+    def __init__(self, texts: List[str], y: List[int], tokenizer, max_length: int = 128):
+        enc = tokenizer(
+            texts,
+            truncation=True,
+            padding="max_length",
+            max_length=max_length,
+            return_tensors="pt",
+        )
+        self.input_ids: torch.Tensor = enc["input_ids"]
+        self.y = torch.tensor(y, dtype=torch.long)
 
-    data = torch.tensor(rows, dtype=torch.float32)
-    X, y = data[:, :-1], data[:, -1].long()
-    return _TensorDataset(X, y)
+    def __len__(self) -> int:
+        return len(self.y)
+
+    def __getitem__(self, idx: int) -> Tuple[torch.Tensor, torch.Tensor]:
+        return self.input_ids[idx], self.y[idx]
 
 
-def _load_jsonl(path: str) -> _TensorDataset:
-    """
-    Load a JSONL file.  Each line must be a JSON object with keys:
-      "features": list[float]  and  "label": int
-    """
-    X_list, y_list = [], []
-    with open(path, encoding="utf-8") as fh:
-        for lineno, line in enumerate(fh, 1):
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                obj = json.loads(line)
-            except json.JSONDecodeError as exc:
-                raise ValueError(f"Invalid JSON on line {lineno} of '{path}': {exc}") from exc
-            if "features" not in obj or "label" not in obj:
-                raise ValueError(
-                    f"Line {lineno} in '{path}' missing 'features' or 'label' key"
-                )
-            X_list.append(obj["features"])
-            y_list.append(obj["label"])
-
-    if not X_list:
-        raise ValueError(f"No records found in '{path}'")
-
-    X = torch.tensor(X_list, dtype=torch.float32)
-    y = torch.tensor(y_list, dtype=torch.long)
-    return _TensorDataset(X, y)
+# ---------------------------------------------------------------------------
+# Data loading helpers
+# ---------------------------------------------------------------------------
 
 
-def _load_dataset(data_path: str) -> _TensorDataset:
+def _load_rows(data_path: str) -> Tuple[List[Dict], List[str]]:
+    """Load CSV or JSONL file; return (rows, fieldnames)."""
     path = Path(data_path)
     if not path.exists():
         raise FileNotFoundError(f"Data file not found: '{data_path}'")
-    suffix = path.suffix.lower()
-    if suffix == ".csv":
-        return _load_csv(data_path)
-    if suffix in (".jsonl", ".ndjson"):
-        return _load_jsonl(data_path)
-    # Fallback: try CSV then JSONL
+
+    if path.suffix.lower() in (".jsonl", ".ndjson"):
+        rows = []
+        with open(path, encoding="utf-8") as fh:
+            for lineno, line in enumerate(fh, 1):
+                stripped = line.strip()
+                if stripped:
+                    try:
+                        rows.append(json.loads(stripped))
+                    except json.JSONDecodeError as exc:
+                        raise ValueError(f"Invalid JSON on line {lineno}: {exc}") from exc
+        headers = list(rows[0].keys()) if rows else []
+    else:  # CSV (default)
+        with open(path, newline="", encoding="utf-8") as fh:
+            reader = csv.DictReader(fh)
+            headers = list(reader.fieldnames or [])
+            rows = [dict(r) for r in reader]
+
+    if not rows:
+        raise ValueError(f"No data found in '{data_path}'")
+    return rows, headers
+
+
+def _detect_label_col(headers: List[str]) -> str:
+    """Choose the label column by common names; falls back to the last column."""
+    synonyms = {"label", "target", "y", "class", "spam", "category", "sentiment", "output"}
+    for h in reversed(headers):
+        if h.lower() in synonyms:
+            return h
+    return headers[-1]
+
+
+def _detect_text_col(headers: List[str], label_col: str) -> Optional[str]:
+    """Choose the text/content column if present; returns None for numeric-only data."""
+    synonyms = {
+        "text", "message", "content", "sentence", "comment",
+        "body", "tweet", "review", "description", "input", "sms",
+    }
+    for h in headers:
+        if h != label_col and h.lower() in synonyms:
+            return h
+    return None
+
+
+def _encode_labels(raw: List[str]) -> Tuple[List[int], Dict[str, int]]:
+    """
+    Map label strings to contiguous integer indices.
+
+    Preserves numeric ordering for integer-valued labels;
+    uses sorted string order otherwise.
+    """
+    unique = sorted(set(raw))
     try:
-        return _load_csv(data_path)
-    except Exception:
-        return _load_jsonl(data_path)
+        int_vals = [int(v) for v in unique]
+        remap = {old: new for new, old in enumerate(sorted(set(int_vals)))}
+        mapping: Dict[str, int] = {v: remap[int(v)] for v in unique}
+    except ValueError:
+        mapping = {v: i for i, v in enumerate(unique)}
+    return [mapping[v] for v in raw], mapping
+
+
+def _tfidf_vectorize(texts: List[str], max_features: int = 512) -> torch.Tensor:
+    """
+    Produce L2-normalised TF-IDF vectors.
+
+    Uses sklearn when available; falls back to a stdlib bag-of-words.
+    """
+    try:
+        from sklearn.feature_extraction.text import TfidfVectorizer
+
+        mat = TfidfVectorizer(max_features=max_features, sublinear_tf=True).fit_transform(texts)
+        return torch.tensor(mat.toarray(), dtype=torch.float32)
+    except ImportError:
+        pass
+
+    # Stdlib fallback — top-K unigrams, L2-normalised counts
+    tokenize = lambda s: re.findall(r"[a-z]+", s.lower())
+    tokenized = [tokenize(t) for t in texts]
+    freq: Counter = Counter()
+    for toks in tokenized:
+        freq.update(set(toks))
+    vocab = {w: i for i, (w, _) in enumerate(freq.most_common(max_features))}
+    dim = len(vocab)
+    rows = []
+    for toks in tokenized:
+        v = [0.0] * dim
+        for w in toks:
+            if w in vocab:
+                v[vocab[w]] += 1.0
+        norm = (sum(x * x for x in v) ** 0.5) or 1.0
+        rows.append([x / norm for x in v])
+    return torch.tensor(rows, dtype=torch.float32)
+
+
+def _detect_lora_targets(model: nn.Module) -> List[str]:
+    """
+    Infer LoRA injection targets from the model's Linear-layer leaf names.
+
+    Checks common attention naming conventions; falls back to the
+    _SimpleClassifier convention (W_query, W_value).
+    """
+    leaves = {name.split(".")[-1] for name, _ in model.named_modules()}
+    if "c_attn" in leaves:          # GPT-2
+        return ["c_attn", "c_proj"]
+    if "query" in leaves:           # BERT / RoBERTa
+        return ["query", "value"]
+    if "q_proj" in leaves:          # LLaMA / Mistral / Falcon
+        return ["q_proj", "v_proj"]
+    return ["W_query", "W_value"]   # _SimpleClassifier default
+
+
+# ---------------------------------------------------------------------------
+# Model + dataset construction (coupled to share dimensionality)
+# ---------------------------------------------------------------------------
+
+
+def _build_model_and_dataset(
+    rows: List[Dict],
+    headers: List[str],
+    model_name: str,
+) -> Tuple[nn.Module, Dataset, int, Dict[str, int]]:
+    """
+    Build (model, dataset, num_classes, label_mapping) together.
+
+    The three data paths are:
+      1. HF model + text column  → _TokenDataset with tokenizer
+      2. built-in/file + text col → TF-IDF _FloatDataset + _SimpleClassifier resized
+      3. built-in/file + numeric  → numeric _FloatDataset + _SimpleClassifier resized
+    """
+    label_col = _detect_label_col(headers)
+    text_col = _detect_text_col(headers, label_col)
+    raw_labels = [str(r[label_col]) for r in rows]
+    labels, label_map = _encode_labels(raw_labels)
+    num_classes = len(label_map)
+
+    is_hf = model_name not in _BUILTIN_MODELS and not Path(model_name).exists()
+
+    tokenizer = None
+    model: nn.Module
+
+    if is_hf:
+        try:
+            from transformers import AutoModelForSequenceClassification, AutoTokenizer
+        except ImportError:
+            raise ImportError(
+                f"Cannot load '{model_name}': transformers is not installed.\n"
+                "  pip install transformers"
+            )
+        try:
+            print(f"[plato-train] loading HuggingFace model '{model_name}' ...")
+            hf = AutoModelForSequenceClassification.from_pretrained(
+                model_name, num_labels=num_classes, ignore_mismatched_sizes=True
+            )
+            tokenizer = AutoTokenizer.from_pretrained(model_name)
+        except Exception as exc:
+            raise ValueError(f"Failed to load '{model_name}': {exc}") from exc
+        model = _HFWrapper(hf)
+    elif Path(model_name).exists():
+        obj = torch.load(str(model_name), map_location="cpu", weights_only=False)
+        if not isinstance(obj, nn.Module):
+            raise ValueError(
+                f"'{model_name}' does not contain an nn.Module (got {type(obj).__name__})"
+            )
+        model = obj
+    else:
+        model = None  # type: ignore[assignment]  # rebuilt after input_dim is known
+
+    # ── Build dataset ──────────────────────────────────────────────────────
+    dataset: Dataset
+    if tokenizer is not None and text_col:
+        texts = [str(r[text_col]) for r in rows]
+        dataset = _TokenDataset(texts, labels, tokenizer)
+    elif text_col:
+        texts = [str(r[text_col]) for r in rows]
+        X = _tfidf_vectorize(texts)
+        y = torch.tensor(labels, dtype=torch.long)
+        dataset = _FloatDataset(X, y)
+    else:
+        feature_cols = [h for h in headers if h not in {label_col, text_col}]
+        if not feature_cols:
+            raise ValueError("No usable feature columns found in data.")
+        try:
+            mat = [[float(r[c]) for c in feature_cols] for r in rows]
+        except (ValueError, KeyError) as exc:
+            raise ValueError(f"Non-numeric feature value: {exc}") from exc
+        X = torch.tensor(mat, dtype=torch.float32)
+        y = torch.tensor(labels, dtype=torch.long)
+        dataset = _FloatDataset(X, y)
+
+    # ── Build / resize _SimpleClassifier ──────────────────────────────────
+    if model is None or (model_name == "simple-classifier" and not is_hf):
+        if isinstance(dataset, _FloatDataset):
+            in_features = dataset.X.shape[1]
+        else:
+            # _TokenDataset — shouldn't reach here for simple-classifier
+            in_features = 512
+        model = _SimpleClassifier(in_features=in_features, num_classes=num_classes)
+
+    return model, dataset, num_classes, label_map
 
 
 # ---------------------------------------------------------------------------
 # Command implementations
 # ---------------------------------------------------------------------------
 
+
 def cmd_train(args: argparse.Namespace) -> int:
-    print(f"[plato-train] room={args.room} model={args.model} epochs={args.epochs} rank={args.rank}")
+    print(f"[plato-train] room={args.room}  model={args.model}  epochs={args.epochs}  rank={args.rank}")
 
-    # Load data first so we can derive in_features for simple-classifier
-    dataset: Optional[_TensorDataset] = None
-    num_classes: Optional[int] = None
-    if args.data:
-        print(f"[plato-train] loading data from '{args.data}' ...")
-        dataset = _load_dataset(args.data)
-        num_classes = int(dataset.y.max().item()) + 1
-        print(f"[plato-train] {len(dataset)} samples, {dataset.X.shape[1]} features, {num_classes} classes")
+    print(f"[plato-train] loading data from '{args.data}' ...")
+    rows, headers = _load_rows(args.data)
 
-    # Build model — patch simple-classifier input size to match data
-    model = _load_model(args.model)
-    if isinstance(model, _SimpleClassifier) and dataset is not None:
-        in_features = dataset.X.shape[1]
-        model = _SimpleClassifier(
-            in_features=in_features,
-            num_classes=num_classes or 2,
+    try:
+        model, dataset, num_classes, label_map = _build_model_and_dataset(
+            rows, headers, args.model
         )
+    except (ValueError, ImportError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
 
-    if dataset is None:
-        print("[plato-train] WARNING: no --data provided; creating dummy single-sample dataset", file=sys.stderr)
-        in_features = (
-            model.W_query.in_features
-            if hasattr(model, "W_query")
-            else 128
-        )
-        X = torch.zeros(1, in_features)
-        y = torch.zeros(1, dtype=torch.long)
-        dataset = _TensorDataset(X, y)
-        num_classes = 1
+    n_samples = len(dataset)
+    print(f"[plato-train] {n_samples:,} samples  |  {num_classes} classes: {label_map}")
 
-    adapter_cfg = AdapterConfig(rank=args.rank, alpha=args.alpha)
+    lora_targets = _detect_lora_targets(model)
+    adapter_cfg = AdapterConfig(rank=args.rank, alpha=args.alpha, target_modules=lora_targets)
     training_cfg = TrainingConfig(
         learning_rate=args.lr,
         epochs=args.epochs,
         batch_size=args.batch_size,
     )
 
-    throttle = None if args.no_throttle else TrainingThrottle()
+    # Passing custom_load_fn=lambda: 0.0 keeps the throttle machinery intact
+    # but reports zero fleet load → always FULL level → no batch reduction.
+    throttle = TrainingThrottle(custom_load_fn=lambda: 0.0) if args.no_throttle else None
 
-    room = PyTorchRoom(
-        room_name=args.room,
-        store_dir=args.store_dir,
-        throttle=throttle,
+    room = PyTorchRoom(room_name=args.room, store_dir=args.store_dir, throttle=throttle)
+
+    print(
+        f"[plato-train] LoRA targets={lora_targets}  "
+        f"batch={args.batch_size}  lr={args.lr}  store={args.store_dir}"
     )
+    print("[plato-train] starting training ...")
 
-    print(f"[plato-train] starting training ...")
-    tile = room.train(
-        model=model,
-        dataset=dataset,
-        adapter_config=adapter_cfg,
-        training_config=training_cfg,
-        num_classes=num_classes,
-    )
+    try:
+        tile = room.train(
+            model=model,
+            dataset=dataset,
+            adapter_config=adapter_cfg,
+            training_config=training_cfg,
+            num_classes=num_classes,
+        )
+    except Exception as exc:
+        print(f"error during training: {exc}", file=sys.stderr)
+        raise
 
-    print()
-    print(f"  tile_id  : {tile.tile_id}")
-    print(f"  state    : {tile.state.value}")
-    print(f"  hash     : {tile.content_hash}")
+    w = 52
+    print(f"\n{'─' * w}")
+    print(f"  tile_id    {tile.tile_id}")
+    print(f"  state      {tile.state.value}")
+    print(f"  type       {tile.tile_type.value}")
+    print(f"  hash       {tile.content_hash}")
     if tile.metrics:
-        print(f"  loss     : {tile.metrics.final_loss:.6f}")
-        print(f"  time     : {tile.metrics.training_time_seconds:.1f}s")
-        if tile.metrics.peak_memory_mb:
-            print(f"  peak_mem : {tile.metrics.peak_memory_mb:.1f} MB")
-    print(f"  store    : {args.store_dir}")
+        m = tile.metrics
+        print(f"  loss       {m.final_loss:.6f}  (after {m.epochs_completed} epoch(s))")
+        print(f"  time       {m.training_time_seconds:.1f}s")
+        if m.peak_memory_mb:
+            print(f"  peak_vram  {m.peak_memory_mb:.1f} MB")
+    print(f"  store      {args.store_dir}")
+    print(f"{'─' * w}")
     return 0
 
 
@@ -251,7 +408,7 @@ def cmd_list(args: argparse.Namespace) -> int:
             tile_type = TileType(args.type.lower())
         except ValueError:
             valid = [t.value for t in TileType]
-            print(f"error: unknown tile type '{args.type}'. Valid: {valid}", file=sys.stderr)
+            print(f"error: unknown tile type '{args.type}'. Valid: {', '.join(valid)}", file=sys.stderr)
             return 1
 
     state_filter: Optional[TileLifecycle] = None
@@ -260,7 +417,7 @@ def cmd_list(args: argparse.Namespace) -> int:
             state_filter = TileLifecycle(args.state.lower())
         except ValueError:
             valid = [s.value for s in TileLifecycle]
-            print(f"error: unknown state '{args.state}'. Valid: {valid}", file=sys.stderr)
+            print(f"error: unknown state '{args.state}'. Valid: {', '.join(valid)}", file=sys.stderr)
             return 1
 
     tiles = store.list_tiles(room=args.room, tile_type=tile_type, state=state_filter)
@@ -273,18 +430,23 @@ def cmd_list(args: argparse.Namespace) -> int:
     col_type  = max(len(t.tile_type.value) for t in tiles)
     col_state = max(len(t.state.value) for t in tiles)
 
-    header = f"{'TILE ID':<{col_id}}  {'TYPE':<{col_type}}  {'STATE':<{col_state}}  {'LOSS':>10}  DESCRIPTION"
+    header = (
+        f"{'TILE ID':<{col_id}}  {'TYPE':<{col_type}}  "
+        f"{'STATE':<{col_state}}  {'LOSS':>10}  DESCRIPTION"
+    )
     print(header)
-    print("-" * len(header))
+    print("─" * len(header))
     for tile in tiles:
-        loss_str = f"{tile.metrics.final_loss:.4f}" if tile.metrics else "     -"
+        loss_str = f"{tile.metrics.final_loss:.4f}" if tile.metrics else "         -"
+        desc = tile.description[:60] + ("…" if len(tile.description) > 60 else "")
         print(
             f"{tile.tile_id:<{col_id}}  "
             f"{tile.tile_type.value:<{col_type}}  "
             f"{tile.state.value:<{col_state}}  "
             f"{loss_str:>10}  "
-            f"{tile.description}"
+            f"{desc}"
         )
+    print(f"\n{len(tiles)} tile(s)")
     return 0
 
 
@@ -295,58 +457,60 @@ def cmd_info(args: argparse.Namespace) -> int:
         print(f"error: tile '{args.tile}' not found in store '{args.store_dir}'", file=sys.stderr)
         return 1
 
-    def _fmt(label: str, value) -> None:
+    def _row(label: str, value) -> None:
         print(f"  {label:<24} {value}")
 
     print(f"\nTile: {tile.tile_id}")
     print("=" * 60)
-    _fmt("room", tile.room)
-    _fmt("type", tile.tile_type.value)
-    _fmt("state", tile.state.value)
-    _fmt("lamport", tile.lamport)
-    _fmt("name", tile.name)
-    _fmt("description", tile.description)
-    _fmt("content_hash", tile.content_hash)
-    _fmt("base_model", tile.base_model or "-")
-    _fmt("parent_tile", tile.parent_tile or "-")
-    _fmt("timestamp", time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(tile.timestamp)))
+    _row("room", tile.room)
+    _row("type", tile.tile_type.value)
+    _row("state", tile.state.value)
+    _row("lamport", tile.lamport)
+    _row("name", tile.name)
+    _row("description", tile.description)
+    _row("content_hash", tile.content_hash or "—")
+    _row("base_model", tile.base_model or "—")
+    _row("parent_tile", tile.parent_tile or "—")
+    _row("timestamp", time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(tile.timestamp)))
 
     if tile.adapter_config:
         ac = tile.adapter_config
         print("\n  Adapter Config:")
-        _fmt("  rank", ac.rank)
-        _fmt("  alpha", ac.alpha)
-        _fmt("  target_modules", ", ".join(ac.target_modules))
-        _fmt("  dropout", ac.dropout)
+        _row("  rank", ac.rank)
+        _row("  alpha", ac.alpha)
+        _row("  target_modules", ", ".join(ac.target_modules))
+        _row("  dropout", ac.dropout)
 
     if tile.training_config:
         tc = tile.training_config
         print("\n  Training Config:")
-        _fmt("  epochs", tc.epochs)
-        _fmt("  batch_size", tc.batch_size)
-        _fmt("  learning_rate", tc.learning_rate)
-        _fmt("  scheduler", tc.scheduler)
+        _row("  epochs", tc.epochs)
+        _row("  batch_size", tc.batch_size)
+        _row("  learning_rate", tc.learning_rate)
+        _row("  scheduler", tc.scheduler)
+        _row("  warmup_steps", tc.warmup_steps)
 
     if tile.metrics:
         m = tile.metrics
         print("\n  Metrics:")
-        _fmt("  final_loss", f"{m.final_loss:.6f}")
-        _fmt("  train_loss", f"{m.train_loss:.6f}")
-        _fmt("  epochs_completed", m.epochs_completed)
-        _fmt("  training_time", f"{m.training_time_seconds:.1f}s")
+        _row("  final_loss", f"{m.final_loss:.6f}")
+        _row("  train_loss", f"{m.train_loss:.6f}")
+        if m.val_loss:
+            _row("  val_loss", f"{m.val_loss:.6f}")
+        _row("  epochs_completed", m.epochs_completed)
+        _row("  training_time", f"{m.training_time_seconds:.1f}s")
         if m.peak_memory_mb:
-            _fmt("  peak_memory_mb", f"{m.peak_memory_mb:.1f}")
+            _row("  peak_memory_mb", f"{m.peak_memory_mb:.1f}")
         if m.loss_curve:
-            curve_preview = [f"{v:.4f}" for v in m.loss_curve[:5]]
-            if len(m.loss_curve) > 5:
-                curve_preview.append("...")
-            _fmt("  loss_curve", "[" + ", ".join(curve_preview) + "]")
+            preview = [f"{v:.4f}" for v in m.loss_curve[:8]]
+            tail = "…" if len(m.loss_curve) > 8 else ""
+            _row("  loss_curve", f"[{', '.join(preview)}{tail}]")
 
     if tile.lifecycle_events:
         print("\n  Lifecycle History:")
         for ev in tile.lifecycle_events:
             ts = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(ev.timestamp))
-            print(f"    [{ts}] L{ev.lamport} {ev.from_state.value} -> {ev.to_state.value}: {ev.reason}")
+            print(f"    [{ts}]  L{ev.lamport}  {ev.from_state.value} → {ev.to_state.value}  {ev.reason}")
 
     print()
     return 0
@@ -354,12 +518,19 @@ def cmd_info(args: argparse.Namespace) -> int:
 
 def cmd_throttle(_args: argparse.Namespace) -> int:
     throttle = TrainingThrottle()
-    state = throttle.check()
     load = throttle.fleet_load()
+    state = throttle.check()
 
-    _BAR_WIDTH = 40
-    filled = int(load * _BAR_WIDTH)
-    bar = "#" * filled + "-" * (_BAR_WIDTH - filled)
+    bar_width = 40
+    filled = int(load * bar_width)
+    bar = "█" * filled + "░" * (bar_width - filled)
+
+    level_note = {
+        ThrottleLevel.FULL:    "  [ok] Fleet idle — full resources available.",
+        ThrottleLevel.REDUCED: "  [~]  Fleet light — training at reduced usage.",
+        ThrottleLevel.MINIMAL: "  [~]  Fleet busy — training at minimal usage.",
+        ThrottleLevel.PAUSED:  "  [!]  Fleet saturated — training would pause until load drops.",
+    }
 
     print(f"\n  Fleet Load   [{bar}] {load:.1%}")
     print(f"  Level        {state.level.value.upper()}")
@@ -368,23 +539,18 @@ def cmd_throttle(_args: argparse.Namespace) -> int:
     print(f"  Workers      {state.num_workers}")
     print(f"  GPU fraction {state.gpu_fraction:.0%}")
     print(f"  Check every  {state.check_interval_sec:.0f}s")
-
-    if state.level == ThrottleLevel.PAUSED:
-        print("\n  [!] Fleet saturated — training would be paused until load drops.")
-    elif state.level == ThrottleLevel.MINIMAL:
-        print("\n  [~] Fleet busy — training at minimal resource usage.")
-    elif state.level == ThrottleLevel.REDUCED:
-        print("\n  [~] Fleet light — training at reduced resource usage.")
-    else:
-        print("\n  [ok] Fleet idle — full training resources available.")
-
+    print()
+    print(level_note.get(state.level, ""))
     print()
     return 0
 
 
 def cmd_serve(args: argparse.Namespace) -> int:
-    print(f"[plato-train] HTTP API server not yet implemented (port={args.port}).", file=sys.stderr)
-    print("  Use 'plato-train train' for now.", file=sys.stderr)
+    print(
+        f"[plato-train] HTTP API server not yet implemented (port={args.port}).\n"
+        f"  Use 'plato-train train' to train and 'plato-train list' to query tiles.",
+        file=sys.stderr,
+    )
     return 1
 
 
@@ -392,10 +558,20 @@ def cmd_serve(args: argparse.Namespace) -> int:
 # Argument parser
 # ---------------------------------------------------------------------------
 
+
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="plato-train",
         description="PLATO Training Rooms — LoRA fine-tuning CLI",
+        epilog=(
+            "examples:\n"
+            "  plato-train train --room spam-detector --model gpt2 --data spam.csv --epochs 3 --rank 8\n"
+            "  plato-train train --room clf --data features.csv --no-throttle\n"
+            "  plato-train list  --room spam-detector --state active\n"
+            "  plato-train info  --tile spam-detector-001\n"
+            "  plato-train throttle\n"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("--version", action="version", version="plato-training 0.2.0")
 
@@ -404,36 +580,40 @@ def _build_parser() -> argparse.ArgumentParser:
 
     # ── train ──────────────────────────────────────────────────────────────
     p_train = sub.add_parser("train", help="Fine-tune a model with LoRA and save a tile")
-    p_train.add_argument("--room",       required=True, help="Room / experiment name")
-    p_train.add_argument("--model",      default="simple-classifier",
-                         help="Model name (simple-classifier) or path to saved nn.Module")
-    p_train.add_argument("--data",       default=None,
-                         help="Path to CSV or JSONL training data file")
+    p_train.add_argument("--room", required=True, help="Room / experiment name")
+    p_train.add_argument(
+        "--model", default="simple-classifier",
+        help="'simple-classifier', a HuggingFace model name, or a local .pt path",
+    )
+    p_train.add_argument("--data", required=True, metavar="FILE",
+                         help="CSV or JSONL training data")
     p_train.add_argument("--epochs",     type=int,   default=3)
     p_train.add_argument("--rank",       type=int,   default=8,    help="LoRA rank")
     p_train.add_argument("--alpha",      type=int,   default=16,   help="LoRA alpha")
     p_train.add_argument("--batch-size", type=int,   default=8,    dest="batch_size")
     p_train.add_argument("--lr",         type=float, default=2e-4, help="Learning rate")
     p_train.add_argument("--store-dir",  default=".plato-training", dest="store_dir",
-                         help="Directory for tile/weight storage")
-    p_train.add_argument("--no-throttle", action="store_true", dest="no_throttle",
-                         help="Disable fleet-aware throttle")
+                         metavar="DIR",  help="Tile and weight storage directory")
+    p_train.add_argument(
+        "--no-throttle", action="store_true", dest="no_throttle",
+        help="Disable fleet-aware throttle (always train at full batch size)",
+    )
     p_train.set_defaults(func=cmd_train)
 
     # ── list ───────────────────────────────────────────────────────────────
     p_list = sub.add_parser("list", help="List tiles in a room")
-    p_list.add_argument("--room",      required=True, help="Room name to list tiles for")
+    p_list.add_argument("--room",      required=True)
     p_list.add_argument("--type",      default=None,
-                        help="Filter by tile type (adapter, checkpoint, dataset, …)")
+                        help="Filter by tile type (adapter | checkpoint | dataset | …)")
     p_list.add_argument("--state",     default=None,
-                        help="Filter by lifecycle state (active, superseded, retracted)")
-    p_list.add_argument("--store-dir", default=".plato-training", dest="store_dir")
+                        help="Filter by state (active | superseded | retracted)")
+    p_list.add_argument("--store-dir", default=".plato-training", dest="store_dir", metavar="DIR")
     p_list.set_defaults(func=cmd_list)
 
     # ── info ───────────────────────────────────────────────────────────────
     p_info = sub.add_parser("info", help="Show full details of a tile")
     p_info.add_argument("--tile",      required=True, help="Tile ID (e.g. spam-detector-001)")
-    p_info.add_argument("--store-dir", default=".plato-training", dest="store_dir")
+    p_info.add_argument("--store-dir", default=".plato-training", dest="store_dir", metavar="DIR")
     p_info.set_defaults(func=cmd_info)
 
     # ── throttle ───────────────────────────────────────────────────────────
@@ -451,6 +631,7 @@ def _build_parser() -> argparse.ArgumentParser:
 # ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
+
 
 def main(argv=None) -> None:
     parser = _build_parser()

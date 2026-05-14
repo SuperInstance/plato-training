@@ -20,5 +20,6 @@ from .throttle import TrainingThrottle, ThrottleLevel, ThrottleState
 from .pytorch_room import PyTorchRoom
 from .tensorflow_room import TensorFlowRoom
 from .spline import SplineLinear, inject_spline, compression_ratio, EisensteinLattice
+from .micro_models import train_micro, list_tasks, TASK_REGISTRY
 
 __version__ = "0.3.0"
