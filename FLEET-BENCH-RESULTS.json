@@ -1,0 +1,546 @@
+{
+  "spam-classify": {
+    "cpu": {
+      "task": "spam-classify",
+      "variant": "dense",
+      "target": "cpu",
+      "latency_ms": 0.032,
+      "throughput": 31605.6,
+      "model_size_bytes": 24133,
+      "tile_id": "micro-spam-classify-001",
+      "accuracy": 0.59,
+      "deploy_info": {}
+    },
+    "cpu-tiny": {
+      "task": "spam-classify",
+      "variant": "spline",
+      "target": "cpu-tiny",
+      "latency_ms": 0.502,
+      "throughput": 1993.6,
+      "model_size_bytes": 46085,
+      "tile_id": "micro-spam-classify-001",
+      "accuracy": 0.58,
+      "deploy_info": {}
+    },
+    "cpu-fast": {
+      "task": "spam-classify",
+      "variant": "dense",
+      "target": "cpu-fast",
+      "latency_ms": 0.016,
+      "throughput": 61049.0,
+      "model_size_bytes": 24133,
+      "tile_id": "micro-spam-classify-001",
+      "accuracy": 0.58,
+      "deploy_info": {}
+    },
+    "gpu": {
+      "task": "spam-classify",
+      "variant": "lora",
+      "target": "gpu",
+      "latency_ms": 0.047,
+      "throughput": 21266.4,
+      "model_size_bytes": 16965,
+      "tile_id": "spam-classify-001",
+      "accuracy": 0.58,
+      "deploy_info": {}
+    },
+    "npu": {
+      "task": "spam-classify",
+      "variant": "dense",
+      "target": "npu",
+      "latency_ms": 0.083,
+      "throughput": 12080.8,
+      "model_size_bytes": 10567,
+      "tile_id": "micro-spam-classify-001",
+      "accuracy": 0.58,
+      "deploy_info": {}
+    },
+    "wasm": {
+      "task": "spam-classify",
+      "variant": "dense",
+      "target": "wasm",
+      "latency_ms": 0.029,
+      "throughput": 34813.4,
+      "model_size_bytes": 24133,
+      "tile_id": "micro-spam-classify-001",
+      "accuracy": 0.61,
+      "deploy_info": {}
+    }
+  },
+  "drift-detect": {
+    "cpu": {
+      "task": "drift-detect",
+      "variant": "dense",
+      "target": "cpu",
+      "latency_ms": 0.033,
+      "throughput": 30002.0,
+      "model_size_bytes": 15941,
+      "tile_id": "micro-drift-detect-001",
+      "accuracy": 1.0,
+      "deploy_info": {}
+    },
+    "cpu-tiny": {
+      "task": "drift-detect",
+      "variant": "spline",
+      "target": "cpu-tiny",
+      "latency_ms": 0.386,
+      "throughput": 2590.5,
+      "model_size_bytes": 29701,
+      "tile_id": "micro-drift-detect-001",
+      "accuracy": 1.0,
+      "deploy_info": {}
+    },
+    "cpu-fast": {
+      "task": "drift-detect",
+      "variant": "dense",
+      "target": "cpu-fast",
+      "latency_ms": 0.033,
+      "throughput": 30366.9,
+      "model_size_bytes": 15941,
+      "tile_id": "micro-drift-detect-001",
+      "accuracy": 1.0,
+      "deploy_info": {}
+    },
+    "gpu": {
+      "task": "drift-detect",
+      "variant": "lora",
+      "target": "gpu",
+      "latency_ms": 0.05,
+      "throughput": 20082.6,
+      "model_size_bytes": 12357,
+      "tile_id": "drift-detect-001",
+      "accuracy": 0.99375,
+      "deploy_info": {}
+    },
+    "npu": {
+      "task": "drift-detect",
+      "variant": "dense",
+      "target": "npu",
+      "latency_ms": 0.106,
+      "throughput": 9423.3,
+      "model_size_bytes": 8519,
+      "tile_id": "micro-drift-detect-001",
+      "accuracy": 1.0,
+      "deploy_info": {}
+    },
+    "wasm": {
+      "task": "drift-detect",
+      "variant": "dense",
+      "target": "wasm",
+      "latency_ms": 0.032,
+      "throughput": 30965.3,
+      "model_size_bytes": 15941,
+      "tile_id": "micro-drift-detect-001",
+      "accuracy": 1.0,
+      "deploy_info": {}
+    }
+  },
+  "anomaly-flag": {
+    "cpu": {
+      "task": "anomaly-flag",
+      "variant": "dense",
+      "target": "cpu",
+      "latency_ms": 0.033,
+      "throughput": 30732.6,
+      "model_size_bytes": 5445,
+      "tile_id": "micro-anomaly-flag-001",
+      "accuracy": 0.895,
+      "deploy_info": {}
+    },
+    "cpu-tiny": {
+      "task": "anomaly-flag",
+      "variant": "spline",
+      "target": "cpu-tiny",
+      "latency_ms": 0.196,
+      "throughput": 5097.5,
+      "model_size_bytes": 8965,
+      "tile_id": "micro-anomaly-flag-001",
+      "accuracy": 0.835,
+      "deploy_info": {}
+    },
+    "cpu-fast": {
+      "task": "anomaly-flag",
+      "variant": "dense",
+      "target": "cpu-fast",
+      "latency_ms": 0.031,
+      "throughput": 32064.3,
+      "model_size_bytes": 5445,
+      "tile_id": "micro-anomaly-flag-001",
+      "accuracy": 0.9,
+      "deploy_info": {}
+    },
+    "gpu": {
+      "task": "anomaly-flag",
+      "variant": "lora",
+      "target": "gpu",
+      "latency_ms": 0.048,
+      "throughput": 20818.6,
+      "model_size_bytes": 6277,
+      "tile_id": "anomaly-flag-001",
+      "accuracy": 0.835,
+      "deploy_info": {}
+    },
+    "npu": {
+      "task": "anomaly-flag",
+      "variant": "dense",
+      "target": "npu",
+      "latency_ms": 0.076,
+      "throughput": 13185.8,
+      "model_size_bytes": 5767,
+      "tile_id": "micro-anomaly-flag-001",
+      "accuracy": 0.93,
+      "deploy_info": {}
+    },
+    "wasm": {
+      "task": "anomaly-flag",
+      "variant": "dense",
+      "target": "wasm",
+      "latency_ms": 0.027,
+      "throughput": 37187.0,
+      "model_size_bytes": 5445,
+      "tile_id": "micro-anomaly-flag-001",
+      "accuracy": 0.93,
+      "deploy_info": {}
+    }
+  },
+  "sentiment": {
+    "cpu": {
+      "task": "sentiment",
+      "variant": "dense",
+      "target": "cpu",
+      "latency_ms": 0.034,
+      "throughput": 29274.9,
+      "model_size_bytes": 24261,
+      "tile_id": "micro-sentiment-001",
+      "accuracy": 0.92,
+      "deploy_info": {}
+    },
+    "cpu-tiny": {
+      "task": "sentiment",
+      "variant": "spline",
+      "target": "cpu-tiny",
+      "latency_ms": 0.475,
+      "throughput": 2107.2,
+      "model_size_bytes": 46213,
+      "tile_id": "micro-sentiment-001",
+      "accuracy": 0.74,
+      "deploy_info": {}
+    },
+    "cpu-fast": {
+      "task": "sentiment",
+      "variant": "dense",
+      "target": "cpu-fast",
+      "latency_ms": 0.034,
+      "throughput": 29850.0,
+      "model_size_bytes": 24261,
+      "tile_id": "micro-sentiment-001",
+      "accuracy": 0.7,
+      "deploy_info": {}
+    },
+    "gpu": {
+      "task": "sentiment",
+      "variant": "lora",
+      "target": "gpu",
+      "latency_ms": 0.049,
+      "throughput": 20507.7,
+      "model_size_bytes": 17029,
+      "tile_id": "sentiment-001",
+      "accuracy": 0.84,
+      "deploy_info": {}
+    },
+    "npu": {
+      "task": "sentiment",
+      "variant": "dense",
+      "target": "npu",
+      "latency_ms": 0.072,
+      "throughput": 13942.6,
+      "model_size_bytes": 10567,
+      "tile_id": "micro-sentiment-001",
+      "accuracy": 0.92,
+      "deploy_info": {}
+    },
+    "wasm": {
+      "task": "sentiment",
+      "variant": "dense",
+      "target": "wasm",
+      "latency_ms": 0.017,
+      "throughput": 59294.0,
+      "model_size_bytes": 24261,
+      "tile_id": "micro-sentiment-001",
+      "accuracy": 0.88,
+      "deploy_info": {}
+    }
+  },
+  "intent-detect": {
+    "cpu": {
+      "task": "intent-detect",
+      "variant": "dense",
+      "target": "cpu",
+      "latency_ms": 0.018,
+      "throughput": 57010.0,
+      "model_size_bytes": 16197,
+      "tile_id": "micro-intent-detect-001",
+      "accuracy": 1.0,
+      "deploy_info": {}
+    },
+    "cpu-tiny": {
+      "task": "intent-detect",
+      "variant": "spline",
+      "target": "cpu-tiny",
+      "latency_ms": 0.524,
+      "throughput": 1908.9,
+      "model_size_bytes": 29957,
+      "tile_id": "micro-intent-detect-001",
+      "accuracy": 0.75,
+      "deploy_info": {}
+    },
+    "cpu-fast": {
+      "task": "intent-detect",
+      "variant": "dense",
+      "target": "cpu-fast",
+      "latency_ms": 0.034,
+      "throughput": 29385.7,
+      "model_size_bytes": 16197,
+      "tile_id": "micro-intent-detect-001",
+      "accuracy": 1.0,
+      "deploy_info": {}
+    },
+    "gpu": {
+      "task": "intent-detect",
+      "variant": "lora",
+      "target": "gpu",
+      "latency_ms": 0.047,
+      "throughput": 21238.4,
+      "model_size_bytes": 12485,
+      "tile_id": "intent-detect-001",
+      "accuracy": 0.93,
+      "deploy_info": {}
+    },
+    "npu": {
+      "task": "intent-detect",
+      "variant": "dense",
+      "target": "npu",
+      "latency_ms": 0.07,
+      "throughput": 14241.3,
+      "model_size_bytes": 8583,
+      "tile_id": "micro-intent-detect-001",
+      "accuracy": 1.0,
+      "deploy_info": {}
+    },
+    "wasm": {
+      "task": "intent-detect",
+      "variant": "dense",
+      "target": "wasm",
+      "latency_ms": 0.069,
+      "throughput": 14588.6,
+      "model_size_bytes": 16197,
+      "tile_id": "micro-intent-detect-001",
+      "accuracy": 1.0,
+      "deploy_info": {}
+    }
+  },
+  "tile-relevance": {
+    "cpu": {
+      "task": "tile-relevance",
+      "variant": "dense",
+      "target": "cpu",
+      "latency_ms": 0.032,
+      "throughput": 30971.9,
+      "model_size_bytes": 24133,
+      "tile_id": "micro-tile-relevance-001",
+      "accuracy": 0.5416666666666666,
+      "deploy_info": {}
+    },
+    "cpu-tiny": {
+      "task": "tile-relevance",
+      "variant": "spline",
+      "target": "cpu-tiny",
+      "latency_ms": 0.371,
+      "throughput": 2694.0,
+      "model_size_bytes": 46085,
+      "tile_id": "micro-tile-relevance-001",
+      "accuracy": 0.48333333333333334,
+      "deploy_info": {}
+    },
+    "cpu-fast": {
+      "task": "tile-relevance",
+      "variant": "dense",
+      "target": "cpu-fast",
+      "latency_ms": 0.017,
+      "throughput": 58065.3,
+      "model_size_bytes": 24133,
+      "tile_id": "micro-tile-relevance-001",
+      "accuracy": 0.6083333333333333,
+      "deploy_info": {}
+    },
+    "gpu": {
+      "task": "tile-relevance",
+      "variant": "lora",
+      "target": "gpu",
+      "latency_ms": 0.052,
+      "throughput": 19078.9,
+      "model_size_bytes": 16965,
+      "tile_id": "tile-relevance-001",
+      "accuracy": 0.55,
+      "deploy_info": {}
+    },
+    "npu": {
+      "task": "tile-relevance",
+      "variant": "dense",
+      "target": "npu",
+      "latency_ms": 0.127,
+      "throughput": 7898.6,
+      "model_size_bytes": 10567,
+      "tile_id": "micro-tile-relevance-001",
+      "accuracy": 0.5833333333333334,
+      "deploy_info": {}
+    },
+    "wasm": {
+      "task": "tile-relevance",
+      "variant": "dense",
+      "target": "wasm",
+      "latency_ms": 0.067,
+      "throughput": 14924.6,
+      "model_size_bytes": 24133,
+      "tile_id": "micro-tile-relevance-001",
+      "accuracy": 0.6083333333333333,
+      "deploy_info": {}
+    }
+  },
+  "priority-rank": {
+    "cpu": {
+      "task": "priority-rank",
+      "variant": "dense",
+      "target": "cpu",
+      "latency_ms": 0.018,
+      "throughput": 56953.6,
+      "model_size_bytes": 6597,
+      "tile_id": "micro-priority-rank-001",
+      "accuracy": 0.65,
+      "deploy_info": {}
+    },
+    "cpu-tiny": {
+      "task": "priority-rank",
+      "variant": "spline",
+      "target": "cpu-tiny",
+      "latency_ms": 0.108,
+      "throughput": 9252.3,
+      "model_size_bytes": 11141,
+      "tile_id": "micro-priority-rank-001",
+      "accuracy": 0.66,
+      "deploy_info": {}
+    },
+    "cpu-fast": {
+      "task": "priority-rank",
+      "variant": "dense",
+      "target": "cpu-fast",
+      "latency_ms": 0.033,
+      "throughput": 30313.1,
+      "model_size_bytes": 6597,
+      "tile_id": "micro-priority-rank-001",
+      "accuracy": 0.65,
+      "deploy_info": {}
+    },
+    "gpu": {
+      "task": "priority-rank",
+      "variant": "lora",
+      "target": "gpu",
+      "latency_ms": 0.058,
+      "throughput": 17322.4,
+      "model_size_bytes": 6981,
+      "tile_id": "priority-rank-001",
+      "accuracy": 0.04,
+      "deploy_info": {}
+    },
+    "npu": {
+      "task": "priority-rank",
+      "variant": "dense",
+      "target": "npu",
+      "latency_ms": 0.14,
+      "throughput": 7150.6,
+      "model_size_bytes": 6087,
+      "tile_id": "micro-priority-rank-001",
+      "accuracy": 0.59,
+      "deploy_info": {}
+    },
+    "wasm": {
+      "task": "priority-rank",
+      "variant": "dense",
+      "target": "wasm",
+      "latency_ms": 0.027,
+      "throughput": 36818.8,
+      "model_size_bytes": 6597,
+      "tile_id": "micro-priority-rank-001",
+      "accuracy": 0.65,
+      "deploy_info": {}
+    }
+  },
+  "topic-classify": {
+    "cpu": {
+      "task": "topic-classify",
+      "variant": "dense",
+      "target": "cpu",
+      "latency_ms": 0.024,
+      "throughput": 41620.6,
+      "model_size_bytes": 86853,
+      "tile_id": "micro-topic-classify-001",
+      "accuracy": 1.0,
+      "deploy_info": {}
+    },
+    "cpu-tiny": {
+      "task": "topic-classify",
+      "variant": "spline",
+      "target": "cpu-tiny",
+      "latency_ms": 1.15,
+      "throughput": 869.8,
+      "model_size_bytes": 170245,
+      "tile_id": "micro-topic-classify-001",
+      "accuracy": 0.29,
+      "deploy_info": {}
+    },
+    "cpu-fast": {
+      "task": "topic-classify",
+      "variant": "dense",
+      "target": "cpu-fast",
+      "latency_ms": 0.034,
+      "throughput": 29472.6,
+      "model_size_bytes": 86853,
+      "tile_id": "micro-topic-classify-001",
+      "accuracy": 1.0,
+      "deploy_info": {}
+    },
+    "gpu": {
+      "task": "topic-classify",
+      "variant": "lora",
+      "target": "gpu",
+      "latency_ms": 0.078,
+      "throughput": 12870.4,
+      "model_size_bytes": 50117,
+      "tile_id": "topic-classify-001",
+      "accuracy": 0.59,
+      "deploy_info": {}
+    },
+    "npu": {
+      "task": "topic-classify",
+      "variant": "dense",
+      "target": "npu",
+      "latency_ms": 0.081,
+      "throughput": 12281.7,
+      "model_size_bytes": 26439,
+      "tile_id": "micro-topic-classify-001",
+      "accuracy": 1.0,
+      "deploy_info": {}
+    },
+    "wasm": {
+      "task": "topic-classify",
+      "variant": "dense",
+      "target": "wasm",
+      "latency_ms": 1.165,
+      "throughput": 858.3,
+      "model_size_bytes": 170245,
+      "tile_id": "micro-topic-classify-001",
+      "accuracy": 0.34,
+      "deploy_info": {}
+    }
+  }
+}

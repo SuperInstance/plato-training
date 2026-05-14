@@ -21,5 +21,6 @@ from .pytorch_room import PyTorchRoom
 from .tensorflow_room import TensorFlowRoom
 from .spline import SplineLinear, inject_spline, compression_ratio, EisensteinLattice
 from .micro_models import train_micro, list_tasks, TASK_REGISTRY
+from .hardware import deploy_micro, PROFILES, generate_room_spec
 
 __version__ = "0.3.0"
