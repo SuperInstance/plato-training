@@ -18,6 +18,7 @@ from .types import AdapterConfig, TrainingConfig, TrainingTile, TileType, TileLi
 from .pytorch_room import PyTorchRoom
 from .throttle import TrainingThrottle
 from .spline import SplineLinear, inject_spline, compression_ratio
+from .low_rank import LowRankLinear, LowRankClassifier, recommend_variant
 
 
 # ─── Task Definitions ──────────────────────────────────────────────

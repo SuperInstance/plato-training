@@ -28,6 +28,7 @@ from .micro_models import (
     train_micro, TASK_REGISTRY, MicroClassifier, SplineClassifier,
     _generate_synthetic, _eval_model,
 )
+from .low_rank import LowRankClassifier, recommend_variant
 from .spline import SplineLinear, compression_ratio as spline_compression
 from .types import TrainingTile
 
@@ -263,11 +264,12 @@ def deploy_micro(
         if profile.max_params <= 5000:
             variant = "spline"  # Tiny targets need compression
         elif profile.dtype == "int8":
-            variant = "dense"   # Quantization handles compression
+            variant = "lowrank"  # INT8 + low-rank = double compression
         elif target in ("gpu", "gpu-small"):
             variant = "lora"    # GPU can handle LoRA efficiently
         else:
-            variant = "dense"   # Default: full model
+            # Use task-aware recommendation
+            variant = recommend_variant(config["description"])
     
     # Train
     if store_dir is None:
