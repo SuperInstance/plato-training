@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.backends.legacy:build"
+
+[project]
+name = "plato-training"
+version = "0.2.0"
+description = "PLATO Training Rooms — LoRA fine-tuning with fleet-aware throttle"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+dependencies = [
+    "torch>=2.0",
+    "safetensors>=0.4",
+]
+
+[project.optional-dependencies]
+tensorflow = ["tensorflow>=2.13"]
+dev = ["pytest>=7"]
+
+[project.scripts]
+plato-train = "plato_training.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["plato_training*"]
