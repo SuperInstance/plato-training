@@ -26,6 +26,13 @@ from .fleet_miner import FleetMiner, CommitPoint, SynergyEvent, RepoSignal
 # Collective room types (for future integration)
 # from .collective import RoomKind, RoomAddress, GapSignal, FocusQueue
 
+# GPU swarm rooms integration (optional — only if CUDA available)
+try:
+    import torch
+    _HAS_CUDA = torch.cuda.is_available()
+except ImportError:
+    _HAS_CUDA = False
+
 
 # ─── Data Structures ────────────────────────────────────────────────
 
@@ -579,6 +586,65 @@ class CollectiveLoop:
             ),
         }
 
+
+    def run_gpu_swarm_cycle(
+        self,
+        n_swarm_agents: int = 256,
+        interconnection_density: float = 0.3,
+        n_swarm_steps: int = 10,
+        repos: Optional[List[str]] = None,
+    ) -> Dict:
+        """
+        Run a GPU-accelerated swarm cycle alongside the collective loop.
+        
+        Fleet commit data seeds the swarm. The swarm simulates how
+        interconnected rooms would process the same information.
+        
+        This is the bridge between real fleet data and theoretical
+        swarm dynamics.
+        """
+        if not _HAS_CUDA:
+            return {"error": "No CUDA available for GPU swarm"}
+        
+        from .swarm_rooms import SwarmRoomNetwork
+        
+        # First run a normal cycle to get fleet data
+        cycle = self.run_cycle(repos=repos)
+        
+        # Create swarm network sized to fleet
+        n_agents = max(n_swarm_agents, cycle.repos_observed * 10)
+        net = SwarmRoomNetwork(
+            n_agents=n_agents,
+            interconnection_density=interconnection_density,
+            device="cuda",
+        )
+        
+        # Inject fleet velocity as task signal
+        if cycle.velocity_by_repo:
+            velocities = list(cycle.velocity_by_repo.values())
+            # Pad or truncate to context_dim
+            signal = torch.zeros(64, device="cuda")
+            for i, v in enumerate(velocities[:64]):
+                signal[i] = v
+            net.step(task_signal=signal)
+        
+        # Run swarm steps
+        swarm_metrics = []
+        for _ in range(n_swarm_steps):
+            m = net.step()
+            swarm_metrics.append(m)
+        
+        return {
+            "cycle": asdict(cycle),
+            "swarm": {
+                "n_agents": n_agents,
+                "n_steps": n_swarm_steps,
+                "final_diversity": swarm_metrics[-1]["context_diversity"],
+                "final_entropy": swarm_metrics[-1]["attention_entropy"],
+                "final_snap_rate": swarm_metrics[-1]["snap_hit_rate"],
+                "final_propagation": swarm_metrics[-1]["propagation_rate"],
+            },
+        }
 
 # ─── CLI Entry Point ────────────────────────────────────────────────
 
