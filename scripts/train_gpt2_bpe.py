@@ -61,6 +61,13 @@ class Gpt2BpeTokenizer:
     def encode(self, text: str) -> list[int]:
         return self.enc.encode(text, disallowed_special=())
 
+    def encode_chunked(self, text: str, chunk_size: int = 500_000) -> list[int]:
+        """Encode large texts in chunks to avoid memory spikes."""
+        tokens = []
+        for i in range(0, len(text), chunk_size):
+            tokens.extend(self.enc.encode(text[i:i+chunk_size], disallowed_special=()))
+        return tokens
+
     def decode(self, ids: list[int]) -> str:
         return self.enc.decode(ids)
 
@@ -196,11 +203,14 @@ class BpeTextDataset(Dataset):
         self.block_size = block_size
         self.stride = stride
 
-        # Tokenize all texts
+        # Tokenize all texts (chunked for large corpora)
         self.tokens = []
         for text in texts:
             try:
-                self.tokens.extend(tokenizer.encode(text))
+                if len(text) > 500_000:
+                    self.tokens.extend(tokenizer.encode_chunked(text))
+                else:
+                    self.tokens.extend(tokenizer.encode(text))
             except Exception as e:
                 print(f"  ! Skipping text block: {e}")
                 continue
