@@ -374,3 +374,52 @@ class TestDedup:
         # Should deduplicate
         keys = set(f"{c.sha}:{c.repo}" for c in loop.all_commits)
         assert len(keys) == len(loop.all_commits)
+
+
+class TestCoordinationTopology:
+    def test_te_zero_single_author(self, loop):
+        """Single author → zero TE, nonzero source entropy."""
+        commits = [
+            CommitPoint(sha=f"s{i}", repo="r", author="alice",
+                       timestamp=time.time() - i * 100, message="m",
+                       files_changed=1, insertions=1, deletions=0, is_merge=False)
+            for i in range(20)
+        ]
+        te, se = loop._compute_coordination_topology(commits)
+        assert te == 0.0
+        assert se == 0.0  # Single author → zero entropy
+
+    def test_te_positive_multi_author(self, loop):
+        """Multiple alternating authors → positive TE."""
+        commits = []
+        for i in range(40):
+            author = "alice" if i % 2 == 0 else "bob"
+            commits.append(CommitPoint(
+                sha=f"s{i}", repo="r", author=author,
+                timestamp=time.time() - (40 - i) * 100, message="m",
+                files_changed=1, insertions=1, deletions=0, is_merge=False,
+            ))
+        te, se = loop._compute_coordination_topology(commits)
+        assert te >= 0.0  # Perfect alternation → high TE
+        assert se > 0.0   # Two authors → nonzero entropy
+
+    def test_te_in_cycle_result(self, loop):
+        """Cycle result includes TE and source entropy."""
+        commits = []
+        for i in range(20):
+            author = "alice" if i % 2 == 0 else "bob"
+            commits.append(CommitPoint(
+                sha=f"s{i}", repo="r", author=author,
+                timestamp=time.time() - i * 100, message="m",
+                files_changed=1, insertions=1, deletions=0, is_merge=False,
+            ))
+        loop._observe = lambda repos=None: commits
+        result = loop.run_cycle()
+        assert hasattr(result, 'transfer_entropy')
+        assert hasattr(result, 'source_entropy')
+        assert result.source_entropy >= 0.0
+
+    def test_te_empty_commits(self, loop):
+        te, se = loop._compute_coordination_topology([])
+        assert te == 0.0
+        assert se == 0.0

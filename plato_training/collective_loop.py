@@ -43,6 +43,8 @@ class CycleResult:
     focus_items: List[Dict]       # gaps surfaced for next cycle
     top_synergies: List[Dict]     # strongest cross-repo signals
     velocity_by_repo: Dict[str, float]  # commits/hour per repo
+    transfer_entropy: float = 0.0       # CCC-style TE between agents
+    source_entropy: float = 0.0         # fleet source diversity
     
     def to_dict(self) -> Dict:
         return asdict(self)
@@ -406,6 +408,9 @@ class CollectiveLoop:
                     "sha": c.sha,
                 })
         
+        # Compute Transfer Entropy from commit author transitions
+        te, se = self._compute_coordination_topology(self.all_commits)
+        
         # Build result
         result = CycleResult(
             cycle_id=cycle_id,
@@ -419,6 +424,8 @@ class CollectiveLoop:
             focus_items=focus_items[:10],  # top 10
             top_synergies=synergies[:10],
             velocity_by_repo=velocity,
+            transfer_entropy=te,
+            source_entropy=se,
         )
         
         # Persist
@@ -470,6 +477,87 @@ class CollectiveLoop:
             if max_cycles == 0 or cycles < max_cycles:
                 time.sleep(interval_minutes * 60)
     
+    # ─── Coordination Topology (CCC-style TE) ────────────────
+    
+    def _compute_coordination_topology(
+        self, commits: List[CommitPoint]
+    ) -> Tuple[float, float]:
+        """
+        Compute Transfer Entropy and Source Entropy from commit stream.
+        
+        Adapted from CCC's coordination-topology: TE measures how much
+        knowing agent A's last commit predicts agent B's next commit.
+        Source entropy measures fleet diversity.
+        
+        Returns (transfer_entropy_bits, source_entropy_bits).
+        """
+        from collections import defaultdict
+        from math import log2
+        
+        if len(commits) < 10:
+            return 0.0, 0.0
+        
+        # Sort commits by time and extract author sequence
+        sorted_commits = sorted(commits, key=lambda c: c.timestamp)
+        author_seq = [c.author for c in sorted_commits]
+        
+        if len(set(author_seq)) < 2:
+            # Only one author → no TE possible
+            counts = defaultdict(int)
+            for a in author_seq:
+                counts[a] += 1
+            total = len(author_seq)
+            h = 0.0
+            for c in counts.values():
+                p = c / total
+                if p > 0:
+                    h -= p * log2(p)
+            return 0.0, h
+        
+        # Compute author transitions (CCC-style fleet_transitions)
+        transitions = defaultdict(int)
+        prev_counts = defaultdict(int)
+        curr_counts = defaultdict(int)
+        
+        for i in range(1, len(author_seq)):
+            prev = author_seq[i - 1]
+            curr = author_seq[i]
+            transitions[(prev, curr)] += 1
+            prev_counts[prev] += 1
+            curr_counts[curr] += 1
+        
+        total = sum(transitions.values())
+        if total == 0:
+            return 0.0, 0.0
+        
+        # Source entropy H(X)
+        h_source = 0.0
+        for c in curr_counts.values():
+            p = c / total
+            if p > 0:
+                h_source -= p * log2(p)
+        
+        # Conditional entropy H(X|Y) from transitions
+        pair_counts = defaultdict(lambda: defaultdict(int))
+        for (prev, curr), count in transitions.items():
+            pair_counts[prev][curr] += count
+        
+        h_cond = 0.0
+        for prev, total_prev in prev_counts.items():
+            p_prev = total_prev / total
+            h_given = 0.0
+            for c in pair_counts[prev].values():
+                p = c / total_prev
+                if p > 0:
+                    h_given -= p * log2(p)
+            h_cond += p_prev * h_given
+        
+        # Transfer Entropy ≈ H(X) - H(X|Y)
+        # Positive TE = knowing previous author reduces uncertainty about next
+        te = max(0.0, h_source - h_cond)
+        
+        return round(te, 4), round(h_source, 4)
+
     # ─── Reporting ───────────────────────────────────────────────
     
     def status_report(self) -> Dict:
