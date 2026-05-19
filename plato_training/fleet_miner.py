@@ -140,13 +140,26 @@ class FleetMiner:
         return f"https://github.com/{self.org}/{repo}.git"
     
     def _ensure_cloned(self, repo: str) -> Path:
-        """Clone repo if not already cloned, or pull latest."""
+        """Clone repo if not already cloned, or use existing local checkout."""
+        # Check if already cloned in our clone_dir
         repo_path = self.clone_dir / repo
         
-        if repo_path.exists():
+        if repo_path.exists() and (repo_path / ".git").exists():
             self._cloned[repo] = repo_path
             return repo_path
         
+        # Check common local checkout locations
+        local_candidates = [
+            Path.cwd() / repo,                       # CWD/repo
+            Path.cwd().parent / repo,                 # parent/repo
+            Path.home() / ".openclaw" / "workspace" / repo,  # workspace
+        ]
+        for candidate in local_candidates:
+            if candidate.exists() and (candidate / ".git").exists():
+                self._cloned[repo] = candidate
+                return candidate
+        
+        # Clone from GitHub
         url = self._repo_url(repo)
         subprocess.run(
             ["git", "clone", "--depth", "500", url, str(repo_path)],
