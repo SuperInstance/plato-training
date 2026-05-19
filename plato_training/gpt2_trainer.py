@@ -26,7 +26,7 @@ from torch.utils.data import Dataset, DataLoader, TensorDataset
 # Local imports — reuse existing PLATO types
 from .types import (
     TrainingTile, TileType, TileLifecycle, LamportClock,
-    TrainingConfig, content_hash,
+    TrainingConfig, TrainingMetrics, content_hash,
 )
 from .store import LocalTileStore
 
@@ -217,7 +217,8 @@ def windows_to_sequences(
                 ))
 
             inputs.append(tokens)
-            targets.append(count_to_bin(target_window.commit_count))
+            # Target is the raw count bin (0-9), not the full token ID
+            targets.append(min(target_window.commit_count, 9))
 
     return inputs, targets
 
@@ -619,9 +620,9 @@ def _augment_synthetic(
             tokens.extend(encode_commit(repo, hour, day, langs, count))
         tokens.append(SPECIAL_TOKENS.index("<EOS>"))
         aug_inputs.append(tokens)
-        # Target: random but weighted
+        # Target: raw count bin (0-9)
         target_count = np.random.choice([0, 0, 1, 1, 2, 3])
-        aug_targets.append(count_to_bin(target_count))
+        aug_targets.append(target_count)
 
     return aug_inputs, aug_targets
 
@@ -732,14 +733,15 @@ def export_tile(
             epochs=len(result.train_loss_history),
             batch_size=16,
         ),
-        metrics={
-            "val_accuracy": result.val_accuracy,
-            "val_loss": result.val_loss,
-            "train_loss_final": result.train_loss_history[-1] if result.train_loss_history else 0,
-            "params": result.params_count,
-            "training_seconds": result.training_seconds,
-            "config": asdict(result.config),
-        },
+        metrics=TrainingMetrics(
+            val_accuracy=result.val_accuracy,
+            val_loss=result.val_loss,
+            train_loss=result.train_loss_history[-1] if result.train_loss_history else 0,
+            final_loss=result.train_loss_history[-1] if result.train_loss_history else 0,
+            epochs_completed=len(result.train_loss_history),
+            training_time_seconds=result.training_seconds,
+            loss_curve=result.train_loss_history,
+        ),
         source_room=room_name,
     )
     store.save(tile)
@@ -761,11 +763,7 @@ def load_tile_model(
         raise FileNotFoundError(f"Tile not found: {tile_id}")
 
     if config is None:
-        # Try to reconstruct from tile metrics
-        if tile.metrics and "config" in tile.metrics:
-            config = TinyGPT2Config(**tile.metrics["config"])
-        else:
-            config = TinyGPT2Config()
+        config = TinyGPT2Config()
 
     model = TinyGPT2(config)
     weight_path = str(store.weights_dir / f"gpt2-fleet-L{tile.lamport}.pt")

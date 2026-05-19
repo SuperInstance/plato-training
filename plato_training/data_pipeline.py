@@ -94,7 +94,7 @@ class DataContainer:
     ):
         self.name = name
         self.schema = schema
-        self.clock = clock or LamportClock(node_id=f"data:{name}")
+        self.clock = clock or LamportClock()
         self._rows: List[Dict[str, Any]] = []
         self._version: Optional[DataVersion] = None
         self._sealed = False
