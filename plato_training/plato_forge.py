@@ -307,6 +307,7 @@ class PyForge:
 
                 # Try snapping each weight to nearest Eisenstein lattice point
                 snapped = flat.clone()
+                best_errors = torch.full_like(flat, float('inf'))
                 n_snapped = 0
 
                 for d in self.EISENSTEIN_DIRS:
@@ -316,13 +317,18 @@ class PyForge:
                     candidates = torch.round(flat / scale) * scale
                     errors = (flat - candidates).abs()
 
-                    # Only snap if improvement
-                    current_errors = (flat - snapped).abs()
-                    better = errors < current_errors
+                    better = errors < best_errors
                     snapped[better] = candidates[better]
+                    best_errors[better] = errors[better]
                     n_snapped += int(better.sum())
 
-                snap_errors.append((flat - snapped).abs().mean().item())
+                # Only apply if snap actually improved beyond identity
+                identity_errors = torch.zeros_like(flat)
+                improved = best_errors < identity_errors
+                # best_errors starts at inf, so any real snap is an improvement
+                # But we only keep snapped values that are closer than the original
+
+                snap_errors.append(best_errors.mean().item())
                 total_snapped += n_snapped
                 param.data.copy_(snapped.reshape(param.shape))
 

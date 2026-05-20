@@ -662,9 +662,12 @@ class IntelligenceRoom:
         """
         Run one self-training cycle.
 
-        Returns metrics about the training.
+        Returns metrics about the training, or empty dict if insufficient data.
         """
-        from .intelligence_self_trainer import SelfTrainer
+        try:
+            from .intelligence_self_trainer import SelfTrainer
+        except ImportError:
+            return {"error": "self_trainer module not available"}
 
         trainer = SelfTrainer(store_dir=str(self.store.store_dir))
 
@@ -674,6 +677,9 @@ class IntelligenceRoom:
 
         # Run training
         metrics = trainer.run_training_cycle()
+        if metrics is None:
+            return {"status": "skipped", "reason": "insufficient data"}
+
         self.stats["self_train_cycles"] += 1
         self.stats["last_self_train"] = time.time()
 
@@ -734,6 +740,7 @@ class IntelligenceRoom:
         dollars_saved = total_tokens * llm_cost_per_1k / 1000
 
         return {
+            "total_requests": self.stats["total_requests"],
             "knowledge_tiles": len(self.knowledge),
             "knowledge_by_domain": dict(domain_counts),
             "knowledge_by_type": dict(type_counts),
