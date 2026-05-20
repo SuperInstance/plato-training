@@ -196,6 +196,9 @@ class PyForge:
                         grad_flat[skip_idx] = 0.0
 
         self.throttle_stats = throttle_stats
+        total = throttle_stats.get("total_gradients", 0)
+        accepted = throttle_stats.get("passed_threshold", 0) + throttle_stats.get("passed_dither", 0)
+        self.throttle_stats["throttle_ratio"] = accepted / max(total, 1)
 
         # BMA convergence check
         bma_result = None

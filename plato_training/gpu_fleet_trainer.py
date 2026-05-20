@@ -37,7 +37,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import Dataset, DataLoader, random_split, TensorDataset
-from torch.cuda.amp import autocast, GradScaler
+from torch.amp import autocast, GradScaler
 
 from .gpt2_room import GPT2Model, GPT2Config, CharTokenizer, TileTextDataset
 from .fleet_miner import FleetMiner, CommitPoint
@@ -466,7 +466,7 @@ def train_gpu_fleet(
     )
 
     # AMP scaler
-    scaler = GradScaler(enabled=config.use_amp)
+    scaler = GradScaler("cuda", enabled=config.use_amp)
 
     # Training loop
     train_losses = []
@@ -486,7 +486,7 @@ def train_gpu_fleet(
             ext_label = batch["extension_labels"].to(device)
             lm_label = batch["lm_labels"].to(device)
 
-            with autocast(enabled=config.use_amp):
+            with autocast("cuda", enabled=config.use_amp):
                 result = model(
                     input_ids,
                     activity_label=act_label,
