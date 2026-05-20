@@ -9,7 +9,10 @@ import json
 import time
 from typing import Dict, List, Optional
 
-import faiss
+try:
+    import faiss
+except ImportError:  # optional dep
+    faiss = None
 import numpy as np
 
 
