@@ -208,26 +208,72 @@ class TestSizeReport:
 # ---------------------------------------------------------------------------
 
 class TestONNXExport:
-    def test_export_attempt(self):
+    def test_export_eisenstein_via_pipeline(self):
         try:
-            import onnx  # noqa: F401
+            from plato_training.onnx_export import export_eisenstein, validate_numerical_parity
+            import onnxruntime as ort
         except ImportError:
-            pytest.skip("onnx not installed")
+            pytest.skip("onnx/onnxruntime not installed")
 
         enc = _make_encoder()
         enc.eval()
-        x = torch.randint(0, VOCAB, (1, 10))
+        path = export_eisenstein(enc, "/tmp/test_eisenstein_pipeline.onnx", opset=17)
+        assert os.path.exists(path)
 
+        # Validate with ONNX Runtime
+        session = ort.InferenceSession(path, providers=["CPUExecutionProvider"])
+        dummy = np.array([[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]], dtype=np.int64)
+        onnx_out = session.run(None, {"token_ids": dummy})[0]
+        with torch.no_grad():
+            pt_out = enc(torch.tensor(dummy, dtype=torch.long)).numpy()
+        parity = validate_numerical_parity(pt_out, onnx_out)
+        assert parity["passes"], f"Numerical parity failed: max_diff={parity['max_diff']}"
+
+        os.remove(path)
+        gc.collect()
+
+    def test_export_spline_via_pipeline(self):
         try:
-            torch.onnx.export(
-                enc, x, "/tmp/eisenstein_encoder_test.onnx",
-                input_names=["token_ids"], output_names=["embedding"],
-                opset_version=14,
-            )
-            assert os.path.exists("/tmp/eisenstein_encoder_test.onnx")
-            os.remove("/tmp/eisenstein_encoder_test.onnx")
-        except Exception as e:
-            print(f"\nONNX export note: {type(e).__name__}: {e}")
-            pytest.skip(f"ONNX export not yet supported: {e}")
+            from plato_training.onnx_export import export_spline, validate_numerical_parity
+            import onnxruntime as ort
+            from plato_training.spline import SplineLinear
+        except ImportError:
+            pytest.skip("onnx/onnxruntime not installed")
 
+        sl = SplineLinear(32, 64, n_control_points=8)
+        sl.eval()
+        path = export_spline(sl, "/tmp/test_spline_pipeline.onnx")
+        assert os.path.exists(path)
+
+        session = ort.InferenceSession(path, providers=["CPUExecutionProvider"])
+        dummy = np.random.randn(3, 32).astype(np.float32)
+        onnx_out = session.run(None, {"input": dummy})[0]
+        with torch.no_grad():
+            pt_out = sl(torch.tensor(dummy)).numpy()
+        parity = validate_numerical_parity(pt_out, onnx_out)
+        assert parity["passes"]
+
+        os.remove(path)
+        gc.collect()
+
+    def test_dynamic_axes_variable_batch(self):
+        try:
+            from plato_training.onnx_export import export_eisenstein
+            import onnxruntime as ort
+        except ImportError:
+            pytest.skip("onnx/onnxruntime not installed")
+
+        enc = _make_encoder()
+        enc.eval()
+        path = export_eisenstein(enc, "/tmp/test_dynamic_axes.onnx")
+
+        session = ort.InferenceSession(path, providers=["CPUExecutionProvider"])
+        # batch=1, seq=5
+        out1 = session.run(None, {"token_ids": np.array([[1, 2, 3, 4, 5]], dtype=np.int64)})
+        # batch=4, seq=12
+        out4 = session.run(None, {"token_ids": np.array([[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]] * 4, dtype=np.int64)})
+        assert out1[0].shape == (1, OUT_DIM)
+        assert out4[0].shape == (4, OUT_DIM)
+
+        os.remove(path)
         gc.collect()
