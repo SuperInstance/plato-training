@@ -13,10 +13,26 @@ Requires-Dist: pytest>=7.0; extra == "dev"
 
 **Train micro models from fleet data. Deploy them anywhere. Tiles carry the intelligence.**
 
-[![Tests](https://img.shields.io/badge/tests-479%20collected-green)]()
+[![Tests](https://img.shields.io/badge/tests-773%20collected-green)]()
 [![License](https://img.shields.io/badge/license-MIT-blue)]()
 
-> **Status: Early-stage research.** This is not a polished library — it's an active research repo with real experimental results. 479 tests, 19K lines of Python, real fleet data flowing through the pipeline. Everything works end-to-end. Nothing is production-hardened.
+> **Status: Early-stage research.** This is not a polished library — it's an active research repo with real experimental results. 773 tests, 16K+ lines of Python, real fleet data flowing through the pipeline. Everything works end-to-end. Nothing is production-hardened.
+
+---
+
+## What's New: Semantic Modules
+
+Five new modules bring semantic understanding to the fleet pipeline:
+
+| Module | Purpose |
+|--------|---------|
+| **tutor_judge.py** | TUTOR-style bitvector matching — 93.8% accuracy on typos, zero ML overhead |
+| **semantic_store.py** | Model2Vec + FAISS retrieval for fast semantic lookup |
+| **semantic_matcher.py** | SemanticMatcher for knowledge Q&A across tile corpora |
+| **eisenstein_encoder.py** | Tiny contrastive encoder — 71.2% hit rate, 627KB model size |
+| **device_router.py** | Heterogeneous compute router (CPU/GPU/NPU/WASM dispatch) |
+
+For standalone semantic matching, see [eisenstein-embed](https://github.com/SuperInstance/eisenstein-embed) — a 5-layer semantic matching cascade with SplineLinear quantization.
 
 ---
 
@@ -128,75 +144,61 @@ anomaly-flag        90%      84%       90%       84%      93%      93%
 sentiment           92%      74%       70%       84%      92%      88%
 ```
 
+**28 of 48 configs above 70% accuracy. Best: 100% on drift-detect (all targets). Worst: 29% on topic-classify/cpu-tiny.**
+
+Honest breakdown:
+- **Strong (>90%):** drift-detect, intent-detect (on most targets), anomaly-flag on NPU
+- **Medium (70-90%):** anomaly-flag (cpu/gpu), sentiment (cpu/npu)
+- **Weak (<70%):** topic-classify on cpu-tiny/gpu/wasm, sentiment on cpu-fast/cpu-tiny
+
 **SplineLinear compression: 20× size reduction on drift-detect at identical accuracy.**
 **NPU quantization (INT8): maintains 100% on drift-detect and intent-detect.**
 
 ---
 
-## Module Map
+## Modules
 
-### Core Training (~10,400 lines in `plato_training/`)
+All modules in `plato_training/`:
 
-| Module | Lines | Purpose |
-|--------|------:|---------|
-| `gpt2_room.py` | 928 | GPT-2 training room — attention, BPE, next-token |
-| `spline_hd.py` | 808 | High-dimensional SplineLinear (Eisenstein lattice) |
-| `gpt2_trainer.py` | 773 | GPT-2 trainer on fleet data |
-| `data_pipeline.py` | 731 | Fleet data ingestion, feature extraction |
-| `collective_loop.py` | 694 | Multi-agent collective inference loop |
-| `cli.py` | 651 | `plato-train` command-line interface |
-| `spline.py` | 600 | SplineLinear compression layer |
-| `swarm_rooms.py` | 547 | GPU-accelerated multi-agent simulation |
-| `hardware.py` | 526 | 8 hardware targets, deploy pipeline |
-| `commit_predictor.py` | 456 | Predict commit patterns from fleet data |
-| `fleet_miner.py` | 419 | Mine commit patterns from repos |
-| `micro_models.py` | 409 | 8 room tasks + training pipeline |
-| `agent_field.py` | 405 | Agent field dynamics |
-| `collective.py` | 399 | Collective inference primitives |
-| `data_rooms.py` | 354 | Data loading rooms |
-| `micro_room.py` | 311 | Ensign room interface |
-| `i2i.py` | 288 | Instance-to-instance protocol |
-| `hierarchical_spline.py` | 222 | Hierarchical spline layers |
-| `low_rank.py` | 172 | Low-rank linear layers |
-| `types.py` | 158 | Shared types |
-| `pytorch_room.py` | 156 | PyTorch room (LoRA + throttle) |
-| `throttle.py` | 122 | Fleet-aware training throttle |
-| `tensorflow_room.py` | 121 | TensorFlow room (Keras + throttle) |
-| `store.py` | 81 | Content-addressed tile store |
-
-### Adapters & Rooms
-
-| Module | Lines | Purpose |
-|--------|------:|---------|
-| `adapters/lora.py` | — | LoRA layer with save/load |
-| `rooms/lora_factory.py` | — | LoRA factory room |
-
-### Scripts (`scripts/`)
-
-| Script | Lines | Purpose |
-|--------|------:|---------|
-| `benchmark_spline_real.py` | 651 | Real data spline benchmarks |
-| `three_proof.py` | 471 | Three-Structure Theorem proof |
-| `train_gpt2_bpe.py` | 644 | BPE tokenizer training |
-| `train_gpt2_tiles.py` | 433 | GPT-2 on tile data |
-| `train_gpt2_continue.py` | 282 | Continue GPT-2 training |
-| `benchmark_spline_hd.py` | 213 | High-dim spline benchmarks |
-| `run_collective.py` | 133 | Run collective inference |
-| `train_gpt2_bpe_v2.py` | 93 | BPE v2 tokenizer |
-
-### Tests
-
-479 tests collected across `plato_training/tests/` and `tests/`. Major test files:
-
-| Test File | Lines | What It Tests |
-|-----------|------:|---------------|
-| `test_gpt2_room.py` | 888 | GPT-2 training room |
-| `test_data_pipeline.py` | 612 | Data pipeline |
-| `test_spline_hd.py` | 538 | High-dim spline |
-| `test_collective_loop.py` | 425 | Collective inference |
-| `test_gpt2_trainer.py` | 451 | GPT-2 trainer |
-| `test_commit_predictor.py` | 275 | Commit prediction |
-| `test_collective_integration.py` | 335 | End-to-end collective |
+| Module | Purpose |
+|--------|---------|
+| `spline.py` | SplineLinear compression layer with Eisenstein lattice weights (5-20× size reduction) |
+| `tutor_judge.py` | TUTOR-style bitvector matching for typo-tolerant lookup (93.8% accuracy) |
+| `semantic_store.py` | Model2Vec + FAISS semantic retrieval store |
+| `semantic_matcher.py` | SemanticMatcher for knowledge Q&A across tile corpora |
+| `eisenstein_encoder.py` | Tiny contrastive encoder (71.2% hit rate, 627KB model size) |
+| `device_router.py` | Heterogeneous compute router — dispatch to CPU/GPU/NPU/WASM |
+| `intelligence_room.py` | 4-tier cascade matching room (bitvector → fuzzy → semantic → LLM) |
+| `eisenstein_export.py` | ONNX export pipeline for Eisenstein models |
+| `fleet_tokenizer.py` | BPE tokenizer trained on fleet corpus |
+| `triplet_miner.py` | Triplet dataset miner from git history |
+| `gpt2_trainer.py` | GPT-2 micro-model trainer on fleet data |
+| `fleet_miner.py` | Git history miner for SuperInstance repos |
+| `gpt2_room.py` | GPT-2 training room — attention, BPE, next-token prediction |
+| `spline_hd.py` | High-dimensional SplineLinear (Eisenstein lattice) |
+| `collective_loop.py` | Multi-agent collective inference loop |
+| `data_pipeline.py` | Fleet data ingestion, feature extraction |
+| `cli.py` | `plato-train` command-line interface |
+| `swarm_rooms.py` | GPU-accelerated multi-agent simulation |
+| `hardware.py` | 8 hardware targets, deploy pipeline |
+| `commit_predictor.py` | Predict commit patterns from fleet data |
+| `micro_models.py` | 8 room tasks + training pipeline |
+| `agent_field.py` | Agent field dynamics |
+| `collective.py` | Collective inference primitives |
+| `data_rooms.py` | Data loading rooms |
+| `micro_room.py` | Ensign room interface |
+| `i2i.py` | Instance-to-instance protocol |
+| `hierarchical_spline.py` | Hierarchical spline layers |
+| `low_rank.py` | Low-rank linear layers |
+| `plato_forge.py` | Tile forge — compile tiles from procedures |
+| `gpu_fleet_trainer.py` | GPU fleet training orchestrator |
+| `intelligence_pre_filter.py` | Pre-filter for intelligence room |
+| `intelligence_post_filter.py` | Post-filter for intelligence room |
+| `intelligence_self_trainer.py` | Self-training loop for intelligence room |
+| `pytorch_room.py` | PyTorch room (LoRA + throttle) |
+| `tensorflow_room.py` | TensorFlow room (Keras + throttle) |
+| `throttle.py` | Fleet-aware training throttle |
+| `store.py` | Content-addressed tile store |
 
 ---
 
@@ -229,9 +231,9 @@ This isn't numerology — it's Lie group theory applied to neural architecture.
 ## What's Real vs. What's Aspirational
 
 **Real and tested:**
-- 479 tests passing
+- 773 tests collected
 - SplineLinear 20× compression at identical accuracy
-- 48 fleet deployment configs (8 tasks × 6 targets)
+- 48 fleet deployment configs (8 tasks × 6 targets), 28/48 above 70% accuracy
 - GPT-2 trainer running on real fleet commit data (416K params)
 - Collective inference loop with real commit patterns
 - Full data pipeline from fleet repos to training tiles

@@ -26,6 +26,7 @@ plato_training/intelligence_self_trainer.py
 plato_training/low_rank.py
 plato_training/micro_models.py
 plato_training/micro_room.py
+plato_training/npu_bridge.py
 plato_training/onnx_export.py
 plato_training/plato_forge.py
 plato_training/pytorch_room.py

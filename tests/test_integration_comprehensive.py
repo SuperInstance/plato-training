@@ -399,6 +399,7 @@ class TestCollectiveLoopIntegration:
         assert loop is not None
 
     def test_run_once_no_crash(self):
+        """Run one cycle with no repos — shouldn't crash or hang."""
         from plato_training.collective_loop import CollectiveLoop
 
         loop = CollectiveLoop(
@@ -406,9 +407,9 @@ class TestCollectiveLoopIntegration:
             clone_dir=tempfile.mkdtemp(),
             history_file=os.path.join(tempfile.mkdtemp(), "history.json"),
         )
-        # Won't find real repos without token, but shouldn't crash
+        # Use empty repos list to avoid cloning/timeout
         try:
-            result = loop.run_cycle()
+            result = loop.run_cycle(repos=[])
         except Exception:
             pass  # Expected without auth
 

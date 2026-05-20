@@ -196,7 +196,7 @@ class CollectiveLoop:
     
     def _observe(self, repos: Optional[List[str]] = None) -> List[CommitPoint]:
         """Phase 1: Mine recent commits from fleet repos."""
-        target_repos = repos or [
+        target_repos = repos if repos is not None else [
             "plato-training", "plato-types", "tensor-spline", "plato-data",
             "constraint-theory-core", "constraint-theory-py",
             "forgemaster", "cocapn-ai-web",

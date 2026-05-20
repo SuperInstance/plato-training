@@ -41,4 +41,36 @@ from .onnx_export import (
     OPSET_VERSION,
 )
 
-__version__ = "0.8.0"
+from .npu_bridge import NPUBridge, bridge as npu_bridge
+
+__all__ = [
+    # Version
+    "__version__",
+    # Types
+    "TrainingTile", "TileType", "TileLifecycle", "LamportClock",
+    "AdapterConfig", "TrainingConfig", "TrainingMetrics", "content_hash",
+    # Adapters
+    "LoRALayer", "inject_lora", "save_lora_weights", "load_lora_weights",
+    # Rooms
+    "LoRAFactory", "PyTorchRoom", "TensorFlowRoom",
+    # Store & Throttle
+    "LocalTileStore", "TrainingThrottle", "ThrottleLevel", "ThrottleState",
+    # Spline
+    "SplineLinear", "inject_spline", "compression_ratio", "EisensteinLattice",
+    "LowRankLinear", "LowRankClassifier", "inject_low_rank", "recommend_variant",
+    "HierarchicalSplineLinear", "HierarchicalSplineClassifier",
+    # Micro models
+    "train_micro", "list_tasks", "TASK_REGISTRY",
+    # Hardware
+    "deploy_micro", "PROFILES", "generate_room_spec",
+    # Data
+    "DataRoom", "DataSpec",
+    "MicroRoom", "RoomFactory",
+    # ONNX
+    "export_eisenstein", "export_spline", "benchmark_onnx_vs_pytorch",
+    "validate_numerical_parity", "OPSET_VERSION",
+    # NPU
+    "NPUBridge", "npu_bridge",
+]
+
+__version__ = "0.9.0"
