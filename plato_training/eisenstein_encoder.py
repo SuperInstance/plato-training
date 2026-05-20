@@ -36,11 +36,14 @@ class EisensteinEncoder(nn.Module):
     an Eisenstein hexagonal lattice) for dramatic compression while
     maintaining representational capacity.
 
+    Supports BPE tokenization (V3+) and falls back to hash-based (V2).
+
     Args:
         vocab_size:      Number of hash buckets for tokenisation.
         embed_dim:       Embedding dimensionality.
         out_dim:         Output embedding dimensionality.
         n_control_points: Control points for SplineLinear layers.
+        tokenizer:       Optional BPE tokenizer instance (tokenizers.Tokenizer).
     """
 
     def __init__(
@@ -49,11 +52,15 @@ class EisensteinEncoder(nn.Module):
         embed_dim: int = 16,
         out_dim: int = 32,
         n_control_points: int = 8,
+        tokenizer: Optional[object] = None,
+        use_layernorm: bool = True,
     ) -> None:
         super().__init__()
         self.vocab_size = vocab_size
         self.embed_dim = embed_dim
         self.out_dim = out_dim
+        self._tokenizer = tokenizer
+        self._use_layernorm = use_layernorm
 
         self.embedding = nn.Embedding(vocab_size, embed_dim)
 
@@ -71,26 +78,38 @@ class EisensteinEncoder(nn.Module):
             self._uses_spline = False
 
         self.act = nn.GELU()
-        self.norm = nn.LayerNorm(out_dim)
+        if use_layernorm:
+            self.norm = nn.LayerNorm(out_dim)
+        else:
+            self.norm = nn.Identity()
 
-    def forward(self, token_ids: torch.Tensor) -> torch.Tensor:
+    def forward(self, token_ids: torch.Tensor, normalize: bool = True) -> torch.Tensor:
         """
         Args:
             token_ids: (batch, seq_len) integer tensor
+            normalize: L2-normalize output (True for retrieval, False for training)
         Returns:
-            (batch, out_dim) L2-normalized embeddings
+            (batch, out_dim) embeddings
         """
         x = self.embedding(token_ids).mean(dim=1)  # (B, embed_dim)
         h = self.act(self.project(x))  # (B, out_dim)
         out = self.norm(self.refine(h))  # (B, out_dim)
-        return nn.functional.normalize(out, p=2, dim=1)
+        if normalize:
+            out = nn.functional.normalize(out, p=2, dim=1)
+        return out
 
     def encode_text(self, texts: List[str]) -> np.ndarray:
-        """Encode raw text → numpy vectors. Simple: lowercase, split, hash to vocab."""
+        """Encode raw text → numpy vectors. Uses BPE if available, else hash."""
         ids_list = []
         for t in texts:
-            tokens = t.lower().split()
-            ids = [hash(w) % self.vocab_size for w in tokens] or [0]
+            if self._tokenizer is not None:
+                # BPE tokenization — preserves lexical structure
+                encoding = self._tokenizer.encode(t.lower())
+                ids = encoding.ids[:512] or [0]
+            else:
+                # Fallback: hash-based tokenization (V2 behavior)
+                tokens = t.lower().split()
+                ids = [hash(w) % self.vocab_size for w in tokens] or [0]
             ids_list.append(ids)
         max_len = max(len(i) for i in ids_list)
         padded = [i + [0] * (max_len - len(i)) for i in ids_list]
@@ -123,8 +142,12 @@ class ContrastiveTrainer:
     def _tokenise(self, texts: List[str]) -> torch.Tensor:
         ids_list = []
         for t in texts:
-            tokens = t.lower().split()
-            ids = [hash(w) % self.encoder.vocab_size for w in tokens] or [0]
+            if self.encoder._tokenizer is not None:
+                encoding = self.encoder._tokenizer.encode(t.lower())
+                ids = encoding.ids[:512] or [0]
+            else:
+                tokens = t.lower().split()
+                ids = [hash(w) % self.encoder.vocab_size for w in tokens] or [0]
             ids_list.append(ids)
         max_len = max(len(i) for i in ids_list)
         padded = [i + [0] * (max_len - len(i)) for i in ids_list]

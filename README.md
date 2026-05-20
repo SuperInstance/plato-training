@@ -250,6 +250,7 @@ This isn't numerology — it's Lie group theory applied to neural architecture.
 | [plato-model-ocean](https://github.com/SuperInstance/plato-model-ocean) | Evolving ecosystem of micro models |
 | [plato-escalation-gate](https://github.com/SuperInstance/plato-escalation-gate) | When to escalate from micro → LLM (737 params) |
 | [constraint-theory-ecosystem](https://github.com/SuperInstance/constraint-theory-ecosystem) | Theoretical foundations, TILE-IS-THE-PROCEDURE |
+| [eisenstein-embed](https://github.com/SuperInstance/eisenstein-embed) | 5-layer semantic matching cascade with SplineLinear quantization |
 
 ## Philosophy
 
