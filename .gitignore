@@ -2,3 +2,4 @@ __pycache__/
 .plato-training/
 models/*.pt
 models/*.onnx
+dist/
