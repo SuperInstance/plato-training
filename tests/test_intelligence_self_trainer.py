@@ -8,6 +8,7 @@ import time
 import threading
 import tempfile
 import shutil
+import unittest.mock
 from pathlib import Path
 
 import numpy as np
@@ -269,26 +270,30 @@ class TestMetrics:
 
 class TestIdleDetector:
     def test_initially_idle(self):
-        det = IdleDetector(idle_threshold_seconds=0.0)
-        assert det.is_idle()
+        det = IdleDetector(idle_threshold_seconds=10.0)
+        # Newly created — last_activity is now, so not idle yet
+        # But with threshold=0.0 it would be. Test with explicit time mock:
+        with unittest.mock.patch.object(time, "time", return_value=det._last_activity + 11.0):
+            assert det.is_idle()
 
     def test_active_then_idle(self):
-        det = IdleDetector(idle_threshold_seconds=0.01)
+        det = IdleDetector(idle_threshold_seconds=10.0)
         det.mark_active()
         assert not det.is_idle()
         det.mark_inactive()
-        time.sleep(0.02)
-        assert det.is_idle()
+        with unittest.mock.patch.object(time, "time", return_value=det._last_activity + 11.0):
+            assert det.is_idle()
 
     def test_active_calls_tracking(self):
-        det = IdleDetector(idle_threshold_seconds=0.01)
+        det = IdleDetector(idle_threshold_seconds=10.0)
         det.mark_active()
         det.mark_active()
         det.mark_inactive()  # still 1 active
         assert not det.is_idle()
         det.mark_inactive()  # now 0
-        time.sleep(0.02)
-        assert det.is_idle()
+        # Simulate passage of time past threshold
+        with unittest.mock.patch.object(time, "time", return_value=det._last_activity + 11.0):
+            assert det.is_idle()
 
     def test_last_activity_age(self):
         det = IdleDetector()

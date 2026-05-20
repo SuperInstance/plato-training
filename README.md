@@ -1,7 +1,8 @@
 # plato-training
 
-[![Tests](https://img.shields.io/badge/tests-773%20collected-green)]()
-[![License](https://img.shields.io/badge/license-MIT-blue)]()
+[![Tests](https://img.shields.io/github/actions/workflow/status/SuperInstance/plato-training/tests.yml?branch=master)](https://github.com/SuperInstance/plato-training/actions)
+[![Version](https://img.shields.io/pypi/v/plato-training)](https://pypi.org/project/plato-training/)
+[![License](https://img.shields.io/github/license/SuperInstance/plato-training)](https://github.com/SuperInstance/plato-training/blob/master/LICENSE)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue)]()
 
 > **Train micro models from fleet data. Deploy them anywhere.** Tiles carry the intelligence — small models + good procedures beat large models working from scratch.
@@ -35,49 +36,47 @@ Need more? See [demos/](demos/) for full examples.
 
 ## What's Inside
 
-### Training & Inference
-
-| Module | Purpose |
-|--------|---------|
-| `micro_models.py` | 8 room tasks + training pipeline |
-| `commit_predictor.py` | Predict commit patterns from fleet data |
-| `collective_loop.py` | Multi-agent collective inference (predict → listen → compare → gap → learn → share) |
-| `gpt2_trainer.py` | GPT-2 micro-model trainer (416K params on fleet data) |
-| `gpt2_room.py` | GPT-2 training room — attention, BPE, next-token prediction |
-| `collective.py` | Collective inference primitives |
-| `gpu_fleet_trainer.py` | GPU fleet training orchestrator |
-| `agent_field.py` | Agent field dynamics |
-| `swarm_rooms.py` | GPU-accelerated multi-agent simulation |
-
-### Compression & Routing
+### Training
 
 | Module | Purpose |
 |--------|---------|
 | `spline.py` | SplineLinear compression — 5-20× size reduction at identical accuracy |
-| `spline_hd.py` | High-dimensional SplineLinear (Eisenstein lattice) |
-| `hierarchical_spline.py` | Hierarchical spline layers |
-| `low_rank.py` | Low-rank linear layers |
-| `device_router.py` | Heterogeneous compute router — dispatch to CPU/GPU/NPU/WASM |
-| `hardware.py` | 8 hardware targets, deploy pipeline |
-| `onnx_export.py` | ONNX export pipeline for Eisenstein & SplineLinear models |
+| `gpt2_trainer.py` | GPT-2 micro-model trainer (416K params on fleet data) |
+| `gpu_fleet_trainer.py` | GPU fleet training orchestrator |
+| `collective.py` | Collective inference primitives |
+| `throttle.py` | Fleet-aware training throttle |
+| `micro_models.py` | 8 room tasks + training pipeline |
+| `collective_loop.py` | Multi-agent collective inference (predict → listen → compare → gap → learn → share) |
+| `gpt2_room.py` | GPT-2 training room — attention, BPE, next-token prediction |
+| `micro_room.py` | Micro training room |
+| `pytorch_room.py` | PyTorch room (LoRA + throttle) |
+| `tensorflow_room.py` | TensorFlow room (Keras + throttle) |
 
-### Semantic Matching
+### Semantic
 
 | Module | Purpose |
 |--------|---------|
+| `tutor_judge.py` | TUTOR-style bitvector matching — 93.8% accuracy, zero ML |
 | `semantic_store.py` | Model2Vec + FAISS semantic retrieval |
 | `semantic_matcher.py` | SemanticMatcher for knowledge Q&A across tile corpora |
 | `eisenstein_encoder.py` | Tiny contrastive encoder (71.2% hit rate, 627KB) |
-| `tutor_judge.py` | TUTOR-style bitvector matching — 93.8% accuracy, zero ML |
 | `intelligence_room.py` | 4-tier cascade matching (bitvector → fuzzy → semantic → LLM) |
 | `intelligence_pre_filter.py` | Pre-filter for intelligence room |
 | `intelligence_post_filter.py` | Post-filter for intelligence room |
 | `intelligence_self_trainer.py` | Self-training loop for intelligence room |
 
-### Data & Infrastructure
+### Infrastructure
 
 | Module | Purpose |
 |--------|---------|
+| `device_router.py` | Heterogeneous compute router — dispatch to CPU/GPU/NPU/WASM |
+| `onnx_export.py` | ONNX export pipeline for Eisenstein & SplineLinear models |
+| `npu_bridge.py` | NPU bridge for edge deployment |
+| `cli.py` | `plato-train` command-line interface |
+| `hardware.py` | 8 hardware targets, deploy pipeline |
+| `spline_hd.py` | High-dimensional SplineLinear (Eisenstein lattice) |
+| `hierarchical_spline.py` | Hierarchical spline layers |
+| `low_rank.py` | Low-rank linear layers |
 | `fleet_miner.py` | Git history miner for SuperInstance repos |
 | `data_pipeline.py` | Fleet data ingestion, feature extraction (30+ features/commit) |
 | `fleet_tokenizer.py` | BPE tokenizer trained on fleet corpus |
@@ -86,10 +85,14 @@ Need more? See [demos/](demos/) for full examples.
 | `store.py` | Content-addressed tile store |
 | `plato_forge.py` | Tile forge — compile tiles from procedures |
 | `i2i.py` | Instance-to-instance protocol |
-| `pytorch_room.py` | PyTorch room (LoRA + throttle) |
-| `tensorflow_room.py` | TensorFlow room (Keras + throttle) |
-| `throttle.py` | Fleet-aware training throttle |
-| `cli.py` | `plato-train` command-line interface |
+
+### Simulation
+
+| Module | Purpose |
+|--------|---------|
+| `swarm_rooms.py` | GPU-accelerated multi-agent simulation |
+| `agent_field.py` | Agent field dynamics |
+| `commit_predictor.py` | Predict commit patterns from fleet data |
 
 ---
 
