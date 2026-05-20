@@ -79,7 +79,7 @@ class JudgeSpecs:
     spelling_tolerance: int = 2        # max char differences
     ignore_words: set = field(default_factory=lambda: {"a", "an", "the", "it", "is", "its"})
     noorder: bool = False
-    min_bitvector_similarity: float = 0.80
+    min_bitvector_similarity: float = 0.88
     min_semantic_similarity: float = 0.60
 
 
@@ -121,6 +121,13 @@ def _parse_pattern(pattern_str: str):
                 tokens.append(('required', word))
             i = j
     return tokens
+
+
+# Common English stopwords that inflate bitvector similarity
+_BITVECTOR_STOPWORDS = frozenset({
+    "what", "is", "the", "a", "an", "how", "does", "do", "tell", "me",
+    "about", "it", "that", "this", "of", "for", "in", "on", "to", "and", "or",
+})
 
 
 def _tokenize_response(response: str, ignore_words: set | None = None) -> list[str]:
@@ -395,24 +402,39 @@ class TutorJudge:
         return {'matched': True}
 
     def _bitvector_pattern_similarity(self, resp_words: list[str], pattern: str) -> float:
-        """Best bitvector similarity between response and pattern."""
+        """Best bitvector similarity between response and pattern.
+
+        Stopwords are filtered out so common function words ("what", "is",
+        "the", ...) don't inflate similarity scores.
+        """
         tokens = _parse_pattern(pattern)
         # Flatten pattern into required + alternative words
         pattern_words = []
         for kind, val in tokens:
             if kind == 'required':
-                pattern_words.append(val.lower())
+                w = val.lower()
+                if w not in _BITVECTOR_STOPWORDS:
+                    pattern_words.append(w)
             elif kind == 'alt':
-                pattern_words.extend(w.lower() for w in val)
+                for w in val:
+                    w = w.lower()
+                    if w not in _BITVECTOR_STOPWORDS:
+                        pattern_words.append(w)
             elif kind == 'optional':
-                pattern_words.extend(w.lower() for w in val)
+                for w in val:
+                    w = w.lower()
+                    if w not in _BITVECTOR_STOPWORDS:
+                        pattern_words.append(w)
 
-        if not pattern_words or not resp_words:
+        # Filter stopwords from response words too
+        resp_content = [w for w in resp_words if w not in _BITVECTOR_STOPWORDS]
+
+        if not pattern_words or not resp_content:
             return 0.0
 
         # For each response word, find best match in pattern
         total_sim = 0.0
-        for rw in resp_words:
+        for rw in resp_content:
             best = 0.0
             for pw in pattern_words:
                 sim = word_similarity(rw, pw)
@@ -424,7 +446,7 @@ class TutorJudge:
                 best = max(best, sim)
             total_sim += best
 
-        return total_sim / max(len(resp_words), len(pattern_words))
+        return total_sim / max(len(resp_content), len(pattern_words))
 
     def _pattern_to_plain_text(self, pattern: str) -> str:
         """Convert pattern to plain text for semantic comparison."""
