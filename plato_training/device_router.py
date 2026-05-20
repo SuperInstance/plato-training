@@ -61,8 +61,14 @@ class DeviceRouter:
     # Device info
     # ------------------------------------------------------------------
 
-    def status(self) -> dict:
+    def overview(self) -> dict:
         """Report available devices and their status."""
+        return self._overview_impl()
+
+    # Alias for backwards compatibility
+    status = overview
+
+    def _overview_impl(self) -> dict:
         info: dict[str, Any] = {
             'cuda': self.cuda_available,
             'directml': self.dml_available,

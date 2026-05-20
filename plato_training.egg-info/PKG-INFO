@@ -110,11 +110,13 @@ GPT-2 Trainer (773 lines) + GPT-2 Room (928 lines)
 pip install plato-training
 ```
 
-Requires the three sibling packages:
+Optional sibling packages for extended functionality:
 
 ```bash
-pip install plato-types tensor-spline plato-data
+pip install tensor-spline plato-data plato-types
 ```
+
+> `plato-training` works standalone with PyTorch. Sibling packages add extras like data loaders (`plato-data`) and extended spline variants (`tensor-spline`), but are not required for core features.
 
 ## Quick Start
 
@@ -169,7 +171,7 @@ All modules in `plato_training/`:
 | `eisenstein_encoder.py` | Tiny contrastive encoder (71.2% hit rate, 627KB model size) |
 | `device_router.py` | Heterogeneous compute router — dispatch to CPU/GPU/NPU/WASM |
 | `intelligence_room.py` | 4-tier cascade matching room (bitvector → fuzzy → semantic → LLM) |
-| `eisenstein_export.py` | ONNX export pipeline for Eisenstein models |
+| `onnx_export.py` | ONNX export pipeline for Eisenstein & SplineLinear models |
 | `fleet_tokenizer.py` | BPE tokenizer trained on fleet corpus |
 | `triplet_miner.py` | Triplet dataset miner from git history |
 | `gpt2_trainer.py` | GPT-2 micro-model trainer on fleet data |
