@@ -44,6 +44,34 @@ from .types import (
 )
 from .store import LocalTileStore
 
+# Optional new modules — graceful fallback
+try:
+    from .tutor_judge import word_similarity as _bitvector_word_similarity
+    _HAS_TUTOR_JUDGE = True
+except ImportError:
+    _HAS_TUTOR_JUDGE = False
+
+try:
+    from .semantic_matcher import SemanticMatcher as _SemanticMatcherCls
+    _HAS_SEMANTIC_MATCHER = True
+except ImportError:
+    _HAS_SEMANTIC_MATCHER = False
+    _SemanticMatcherCls = None
+
+try:
+    from .eisenstein_encoder import EisensteinEncoder as _EisensteinEncoderCls
+    _HAS_EISENSTEIN = True
+except ImportError:
+    _HAS_EISENSTEIN = False
+    _EisensteinEncoderCls = None
+
+try:
+    from .device_router import DeviceRouter as _DeviceRouterCls
+    _HAS_DEVICE_ROUTER = True
+except ImportError:
+    _HAS_DEVICE_ROUTER = False
+    _DeviceRouterCls = None
+
 
 # ─── Intelligence Tile Types ──────────────────────────────────────
 
@@ -180,6 +208,9 @@ class IntelligenceRoom:
         store_dir: str = ".plato-intelligence",
         max_knowledge_tiles: int = 10000,
         max_experience: int = 50000,
+        use_semantic: bool = True,
+        use_eisenstein: bool = True,
+        use_device_router: bool = True,
     ):
         self.store = LocalTileStore(store_dir)
         self.max_knowledge = max_knowledge_tiles
@@ -198,6 +229,8 @@ class IntelligenceRoom:
             "knowledge_tiles_reused": 0,
             "self_train_cycles": 0,
             "last_self_train": 0.0,
+            "semantic_hits": 0,
+            "bitvector_hits": 0,
         }
 
         # Load state
@@ -206,6 +239,37 @@ class IntelligenceRoom:
         # Models (lazy-loaded)
         self._pre_filter = None
         self._post_filter = None
+
+        # --- New modules (optional, graceful fallback) ---
+
+        # Semantic matcher for knowledge retrieval
+        self._semantic_matcher = None
+        if use_semantic and _HAS_SEMANTIC_MATCHER:
+            try:
+                self._semantic_matcher = _SemanticMatcherCls(threshold=0.6)
+                # Re-index existing knowledge
+                for key, tile in self.knowledge.items():
+                    text = f"{tile.domain} {tile.compressed_content}"
+                    self._semantic_matcher.add(key, text)
+            except Exception:
+                self._semantic_matcher = None
+
+        # Eisenstein encoder for lightweight embeddings
+        self._eisenstein_encoder = None
+        if use_eisenstein and _HAS_EISENSTEIN:
+            try:
+                self._eisenstein_encoder = _EisensteinEncoderCls()
+                self._eisenstein_encoder.eval()
+            except Exception:
+                self._eisenstein_encoder = None
+
+        # Device router for inference routing
+        self._device_router = None
+        if use_device_router and _HAS_DEVICE_ROUTER:
+            try:
+                self._device_router = _DeviceRouterCls()
+            except Exception:
+                self._device_router = None
 
     # ─── Pre-Filter (Routing) ─────────────────────────────────────
 
@@ -256,7 +320,76 @@ class IntelligenceRoom:
     def _check_knowledge(
         self, request_text: str, domain: str,
     ) -> Optional[KnowledgeTile]:
-        """Check if we already have knowledge that answers this request."""
+        """Check if we already have knowledge that answers this request.
+
+        Cascade: exact → bitvector → semantic → keyword fallback.
+        """
+        # Tier 1: Exact string match (fastest)
+        for tile in self.knowledge.values():
+            if tile.compressed_content == request_text:
+                tile.touch()
+                self.stats["knowledge_tiles_reused"] += 1
+                return tile
+
+        # Tier 2: Bitvector matching via TutorJudge (50x faster than embeddings)
+        if _HAS_TUTOR_JUDGE:
+            tile = self._check_knowledge_bitvector(request_text, domain)
+            if tile is not None:
+                self.stats["bitvector_hits"] += 1
+                return tile
+
+        # Tier 3: Semantic matching via SemanticMatcher (catches paraphrases)
+        if self._semantic_matcher is not None and self._semantic_matcher.size() > 0:
+            result = self._semantic_matcher.match(request_text)
+            if result is not None:
+                key, score, _ = result
+                tile = self.knowledge.get(key)
+                if tile is not None:
+                    tile.touch()
+                    self.stats["semantic_hits"] += 1
+                    self.stats["knowledge_tiles_reused"] += 1
+                    return tile
+
+        # Tier 4: Keyword overlap fallback (original logic)
+        return self._check_knowledge_keyword(request_text, domain)
+
+    def _check_knowledge_bitvector(
+        self, request_text: str, domain: str, threshold: float = 0.5,
+    ) -> Optional[KnowledgeTile]:
+        """Bitvector matching using TutorJudge word_similarity."""
+        query_words = request_text.lower().split()
+        best_tile = None
+        best_score = 0.0
+
+        for tile in self.knowledge.values():
+            if tile.domain != domain and domain != "general":
+                continue
+            tile_words = tile.compressed_content.lower().split()
+            # Average max-similarity per query word
+            total_sim = 0.0
+            for qw in query_words:
+                max_sim = max(
+                    (_bitvector_word_similarity(qw, tw) for tw in tile_words),
+                    default=0.0,
+                )
+                total_sim += max_sim
+            avg_sim = total_sim / max(len(query_words), 1)
+            score = avg_sim * tile.confidence * (1 + 0.1 * min(tile.reuse_count, 10))
+
+            if score > best_score and avg_sim > threshold:
+                best_score = score
+                best_tile = tile
+
+        if best_tile is not None:
+            best_tile.touch()
+            self.stats["knowledge_tiles_reused"] += 1
+            return best_tile
+        return None
+
+    def _check_knowledge_keyword(
+        self, request_text: str, domain: str,
+    ) -> Optional[KnowledgeTile]:
+        """Original keyword overlap matching (fallback)."""
         query_words = set(request_text.lower().split())
 
         best_tile = None
@@ -542,10 +675,24 @@ class IntelligenceRoom:
         )
 
     def _compute_novelty(self, content: str, domain: str) -> float:
-        """Compute how novel this content is vs existing knowledge."""
+        """Compute how novel this content is vs existing knowledge.
+
+        Uses semantic matcher if available, falls back to keyword overlap.
+        """
         if not self.knowledge:
             return 1.0
 
+        # Semantic novelty: 1 - max similarity from semantic matcher
+        if self._semantic_matcher is not None and self._semantic_matcher.size() > 0:
+            try:
+                result = self._semantic_matcher.match(content)
+                if result is not None:
+                    _, score, _ = result
+                    return max(0.0, 1.0 - score)
+            except Exception:
+                pass
+
+        # Keyword overlap fallback
         words = set(content.lower().split())
         max_overlap = 0.0
 
@@ -579,6 +726,14 @@ class IntelligenceRoom:
             return  # Already stored (dedup)
 
         self.knowledge[tile.tile_id] = tile
+
+        # Keep semantic index in sync
+        if self._semantic_matcher is not None:
+            try:
+                text = f"{tile.domain} {tile.compressed_content}"
+                self._semantic_matcher.add(tile.tile_id, text)
+            except Exception:
+                pass
 
         # Evict oldest/least-useful if over limit
         if len(self.knowledge) > self.max_knowledge:
