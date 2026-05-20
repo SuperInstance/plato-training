@@ -489,7 +489,7 @@ def train_fleet_gpt2(
         inputs, targets = _augment_synthetic(inputs, targets, windows, seq_len, n_augment=200)
 
     if verbose:
-        print(f"Created {len(inputs)} sequences, {len(set(targets.tolist() if isinstance(targets, list) else targets))} classes")
+        print(f"Created {len(inputs)} sequences, {len(set(targets))} classes")
 
     # Step 3: Create dataset
     max_seq_tokens = seq_len * 10  # each window encodes to ~8-10 tokens
