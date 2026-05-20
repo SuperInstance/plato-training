@@ -265,6 +265,8 @@ class TutorJudge:
             'matched_pattern': None,
         }
 
+        if response is None:
+            response = ""
         if correct_patterns is None:
             correct_patterns = []
         if wrong_patterns is None:
