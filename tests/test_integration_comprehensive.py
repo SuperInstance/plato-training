@@ -408,7 +408,7 @@ class TestCollectiveLoopIntegration:
         )
         # Won't find real repos without token, but shouldn't crash
         try:
-            result = loop.run_once()
+            result = loop.run_cycle()
         except Exception:
             pass  # Expected without auth
 
