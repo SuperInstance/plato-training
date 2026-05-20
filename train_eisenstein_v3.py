@@ -44,11 +44,11 @@ EMBED_DIM = 32
 OUT_DIM = 128
 N_CONTROL_POINTS = 12
 BATCH_SIZE = 32
-N_EPOCHS = 200
+N_EPOCHS = 150
 LR_START = 1e-3
 LR_END = 1e-5
 TIMEOUT_SECONDS = 300
-MAX_SEQ_LEN = 64
+MAX_SEQ_LEN = 40
 
 # ─── Step 1: Train BPE tokenizer ─────────────────────────────────────
 
@@ -361,10 +361,15 @@ for epoch in range(N_EPOCHS):
         loss.backward()
         optimizer.step()
         epoch_losses.append(loss.item())
+        del loss, a_v, p_v, n_v, vecs, t
     
     scheduler.step()
     avg = np.mean(epoch_losses)
     losses.append(avg)
+    
+    # Periodic GC to prevent memory leak
+    if (epoch + 1) % 10 == 0:
+        gc.collect()
     
     if (epoch + 1) % 10 == 0 or epoch == 0:
         elapsed = time.time() - start_time
