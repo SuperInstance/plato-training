@@ -59,32 +59,18 @@ print("=" * 60)
 bpe_path = MODELS_DIR / "fleet-bpe.json"
 MODELS_DIR.mkdir(exist_ok=True)
 
+# Load existing BPE tokenizer (kept for future use)
 if bpe_path.exists():
     tokenizer = load_fleet_bpe(str(bpe_path))
-    # Check if vocab matches
-    if tokenizer.get_vocab_size() != VOCAB_SIZE:
-        print(f"Existing BPE vocab ({tokenizer.get_vocab_size()}) != target ({VOCAB_SIZE}), retraining")
-        tokenizer = train_fleet_bpe(
-            workspace=str(WORKSPACE),
-            vocab_size=VOCAB_SIZE,
-            save_path=str(bpe_path),
-        )
 else:
     tokenizer = train_fleet_bpe(
         workspace=str(WORKSPACE),
-        vocab_size=VOCAB_SIZE,
+        vocab_size=5000,
         save_path=str(bpe_path),
     )
 
-actual_vocab = tokenizer.get_vocab_size()
-print(f"BPE vocab size: {actual_vocab}")
-# Update vocab size to match tokenizer
-VOCAB_SIZE = actual_vocab
-
-# Quick test
-enc = tokenizer.encode("deploy drift detection model to fleet")
-print(f"Test: 'deploy drift detection model to fleet' → {enc.ids[:10]}...")
-print(f"  Tokens: {enc.tokens[:10]}")
+print(f"BPE tokenizer loaded (vocab={tokenizer.get_vocab_size()})")
+print(f"V3 uses morphology-aware hash tokenization (not raw BPE)")
 
 gc.collect()
 

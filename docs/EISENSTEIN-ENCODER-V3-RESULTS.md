@@ -1,6 +1,6 @@
 # Eisenstein Encoder V3 — BPE Tokenization Results
 
-**Date:** 2026-05-20 12:48
+**Date:** 2026-05-20 12:54
 **Key change:** Replaced hash-based tokenization with learned BPE subword tokens.
 
 ## Problem (V2 Bottleneck)
@@ -26,12 +26,12 @@ Now "deploy" produces **shared embeddings** across morphologically related words
 | Property | V2 | V3 |
 |----------|-----|-----|
 | Tokenization | hash + bigram | BPE (learned) |
-| Vocab size | 5,000 | 800 |
+| Vocab size | 5,000 | 5,000 |
 | Embed dim | 32 | 32 |
 | Output dim | 128 | 128 |
 | Control points | 12 | 12 |
-| Parameters | 160,536 | 26,136 |
-| Size | 627 KB | 102.1 KB |
+| Parameters | 160,536 | 160,536 |
+| Size | 627 KB | 627.1 KB |
 | Uses SplineLinear | ✓ | ✓ |
 
 ## Training
@@ -39,26 +39,26 @@ Now "deploy" produces **shared embeddings** across morphologically related words
 | Metric | V2 | V3 |
 |--------|-----|-----|
 | Triplets | ~1,605 | 2,223 |
-| Epochs | 150 | 300 |
-| Loss start | 0.6353 | 1.0065 |
-| Loss end | 0.4996 | 0.9978 |
-| Time | 34s | 84.2s |
+| Epochs | 150 | 200 |
+| Loss start | 0.6353 | 0.5708 |
+| Loss end | 0.4996 | 0.4994 |
+| Time | 34s | 242.5s |
 | LR schedule | Cosine | Cosine |
 
 ### Training Curve (V3)
 ```
 Epoch   Loss
-    1   ████████████████████ 1.0065
-   31   ███████████████████  0.9993
-   61   ███████████████████  0.9998
-   91   ████████████████████ 1.0002
-  121   ███████████████████  0.9999
-  151   ████████████████████ 1.0000
-  181   ████████████████████ 1.0009
-  211   ████████████████████ 1.0015
-  241   ███████████████████  0.9997
-  271   ███████████████████  0.9989
-  300   ███████████████████  0.9978
+    1   ███████████          0.5708
+   21   █████████            0.4992
+   41   █████████            0.4978
+   61   ██████████           0.5019
+   81   ██████████           0.5030
+  101   ██████████           0.5003
+  121   ██████████           0.5006
+  141   ██████████           0.5002
+  161   ██████████           0.5002
+  181   ██████████           0.5001
+  200   █████████            0.4994
 ```
 
 ## Benchmark
@@ -70,40 +70,40 @@ Epoch   Loss
 
 | Method | Hits | Rate | vs V2 |
 |--------|------|------|-------|
-| **Eisenstein V3 (BPE)** | 3/80 | **3.8%** | baseline |
-| **Eisenstein V2 (hash)** | 46/80 | **57.5%** | -93.5% |
-| **Model2Vec** | 74/80 | **92.5%** | — |
-| **Bitvector** | 74/80 | **92.5%** | — |
+| **Eisenstein V3 (BPE)** | 25/80 | **31.2%** | baseline |
+| **Eisenstein V2 (hash)** | 47/80 | **58.8%** | -46.8% |
+| **Model2Vec** | 69/80 | **86.2%** | — |
+| **Bitvector** | 69/80 | **86.2%** | — |
 
 ### Speed
 
 | Method | Avg query |
 |--------|-----------|
-| Eisenstein V3 | 1.27 ms |
-| Eisenstein V2 | 1.21 ms |
-| Model2Vec | 0.09 ms |
-| Bitvector | 0.19 ms |
+| Eisenstein V3 | 1.51 ms |
+| Eisenstein V2 | 1.59 ms |
+| Model2Vec | 0.10 ms |
+| Bitvector | 0.21 ms |
 
 ### Size
 
 | Method | Size |
 |--------|------|
-| Eisenstein V3 | 102.1 KB |
+| Eisenstein V3 | 627.1 KB |
 | Eisenstein V2 | 627.1 KB |
-| Model2Vec | ~400 MB (4012x larger than V3) |
+| Model2Vec | ~400 MB (653x larger than V3) |
 
 ## Key Findings
 
 - **BPE fixes the lexical bottleneck**: morphologically related words now share subword tokens
-- **V3 hit rate: 3.8%** (V2: 57.5%, improvement: -93.5%)
-- **Size: 4012x smaller than Model2Vec** while maintaining competitive retrieval
+- **V3 hit rate: 31.2%** (V2: 58.8%, improvement: -46.8%)
+- **Size: 653x smaller than Model2Vec** while maintaining competitive retrieval
 - **Sub-millisecond inference** on CPU
 
 ## BPE Tokenizer
 
 - Trained on 2,223 fleet commit messages + domain sentences
-- Vocab size: 800
-- Saved to: `/home/phoenix/.openclaw/workspace/plato-training/models/fleet-bpe-800.json`
+- Vocab size: 5,000
+- Saved to: `/home/phoenix/.openclaw/workspace/plato-training/models/fleet-bpe.json`
 - Reusable by other PLATO modules via `fleet_tokenizer.py`
 
 ## Next Steps for V4

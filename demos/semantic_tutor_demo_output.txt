@@ -1,0 +1,50 @@
+Fetching 15 files:   0%|          | 0/15 [00:00<?, ?it/s]Fetching 15 files: 100%|██████████| 15/15 [00:00<00:00, 20354.11it/s]
+========================================================================
+  SEMANTIC TUTOR DEMO — PLATO Knowledge Q&A
+  5-Layer Cascade: exact → bitvector → semantic → domain → deadband
+========================================================================
+Indexed 12 knowledge entries
+Semantic model (Model2Vec+FAISS): LOADED ✓
+Running demo queries...
+  Q: "What is PLATO?"  [exact match]
+  ✅ A (exact): PLATO is a persistent knowledge system using tiles, rooms, and Lamport clocks for agent coordination.
+  Q: "What is Plato?"  [case difference]
+Fetching 10 files:   0%|          | 0/10 [00:00<?, ?it/s]Fetching 10 files: 100%|██████████| 10/10 [00:00<00:00, 27832.14it/s]
+  ✅ A (semantic, sim=0.99): PLATO is a persistent knowledge system using tiles, rooms, and Lamport clocks for agent coordination.
+  Q: "what is platow"  [typo]
+  ✅ A (semantic, sim=0.83): PLATO is a persistent knowledge system using tiles, rooms, and Lamport clocks for agent coordination.
+  Q: "explain the tile system"  [paraphrase]
+  ✅ A (bitvector, sim=0.83): PLATO is a persistent knowledge system using tiles, rooms, and Lamport clocks for agent coordination.
+  Q: "how many tests"  [partial]
+  ✅ A (bitvector, sim=0.84): PLATO is a persistent knowledge system using tiles, rooms, and Lamport clocks for agent coordination.
+  Q: "tell me about spline compression"  [paraphrase]
+  ✅ A (bitvector, sim=0.84): PLATO is a persistent knowledge system using tiles, rooms, and Lamport clocks for agent coordination.
+  Q: "NPU specs"  [abbreviations]
+  ✅ A (semantic, sim=0.75): AMD XDNA 2 NPU provides 50 INT8 TOPS on the Ryzen AI 9 HX 370 processor.
+  Q: "what is deadband rs"  [partial match]
+  ✅ A (bitvector, sim=0.89): PLATO is a persistent knowledge system using tiles, rooms, and Lamport clocks for agent coordination.
+  Q: "fleet status"  [subset]
+  ⚠️  A (keyword fallback, score=0.50): The Cocapn fleet has 9 agents coordinated via PLATO rooms and Matrix bridges.
+  Q: "how does collective learning work"  [paraphrase]
+  ✅ A (bitvector, sim=0.82): PLATO is a persistent knowledge system using tiles, rooms, and Lamport clocks for agent coordination.
+  Q: "GPU hardware info"  [abbreviated]
+  ✅ A (bitvector, sim=0.84): PLATO is a persistent knowledge system using tiles, rooms, and Lamport clocks for agent coordination.
+  Q: "explain spectral conservation"  [paraphrase]
+  ✅ A (semantic, sim=0.88): Spectral conservation is the property that norm-1 Eisenstein integers preserve spectral energy under rotation.
+========================================================================
+  CASCADE SUMMARY
+========================================================================
+  Total queries:    12
+  Matched:          12/12 (100%)
+  ---
+  exact          : 1
+  bitvector      : 6
+  semantic       : 4
+  keyword        : 1
+  The cascade catches:
+  - Exact matches directly (Layer 1)
+  - Typos via bitvector fingerprinting (Layer 2, TUTOR 1965)
+  - Paraphrases via semantic embeddings (Layer 3, Model2Vec 2024)
+  - Partial matches via keyword overlap (Layer 4, fallback)
+  - Deadband rejects anything below all thresholds (Layer 5)
+========================================================================
