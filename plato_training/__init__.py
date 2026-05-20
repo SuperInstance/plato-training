@@ -33,4 +33,12 @@ from .hardware import deploy_micro, PROFILES, generate_room_spec
 from .data_rooms import DataRoom, DataSpec
 from .micro_room import MicroRoom, RoomFactory
 
+from .onnx_export import (
+    export_eisenstein,
+    export_spline,
+    benchmark_onnx_vs_pytorch,
+    validate_numerical_parity,
+    OPSET_VERSION,
+)
+
 __version__ = "0.8.0"
