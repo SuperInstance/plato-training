@@ -1,6 +1,10 @@
+demos
 dist
+docs
+models
 plato_forge
 plato_training
 research
 review
 scripts
+weights
