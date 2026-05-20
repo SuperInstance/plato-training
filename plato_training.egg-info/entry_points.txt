@@ -1,0 +1,2 @@
+[console_scripts]
+plato-train = plato_training.cli:main
