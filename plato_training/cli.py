@@ -554,6 +554,204 @@ def cmd_serve(args: argparse.Namespace) -> int:
     return 1
 
 
+def cmd_gpt2_fleet(args: argparse.Namespace) -> int:
+    """Train a tiny GPT-2 on fleet git commit data."""
+    from .fleet_miner import FleetMiner
+    from .gpt2_trainer import (
+        train_fleet_gpt2, export_tile, predict_next_hour,
+        TinyGPT2Config,
+    )
+
+    # ── Mine data ─────────────────────────────────────────────────
+    token_path = Path.home() / ".openclaw/workspace/.credentials/github-pat.txt"
+    token = None
+    if token_path.exists():
+        token = token_path.read_text().strip()
+    if not token:
+        print("error: no GitHub PAT found at ~/.openclaw/workspace/.credentials/github-pat.txt",
+              file=sys.stderr)
+        return 1
+
+    org = args.org
+    miner = FleetMiner(org=org, token=token, clone_dir=args.clone_dir)
+
+    repos = args.repos.split(",") if args.repos else None
+    if repos is None:
+        repos = [
+            "plato-training", "plato-types", "tensor-spline", "plato-data",
+            "constraint-theory-core", "constraint-theory-py", "cocapn-ai-web",
+            "forgemaster", "plato-vessel-core", "casting-call",
+        ]
+
+    print(f"[gpt2-fleet] Mining {len(repos)} repos from {org} ...")
+    all_commits = []
+    for repo in repos:
+        try:
+            commits = miner.mine_repo(repo, max_commits=args.max_commits)
+            all_commits.extend(commits)
+            print(f"  {repo}: {len(commits)} commits")
+        except Exception as exc:
+            print(f"  {repo}: SKIP ({exc})")
+
+    print(f"[gpt2-fleet] {len(all_commits)} total commits mined")
+
+    if len(all_commits) < 10:
+        print("error: too few commits to train. Try --max-commits 500 or more.",
+              file=sys.stderr)
+        return 1
+
+    # ── Train ─────────────────────────────────────────────────────
+    config = TinyGPT2Config(
+        n_layer=args.layers,
+        n_head=args.heads,
+        n_embd=args.embed,
+        block_size=args.block_size,
+    )
+    print(f"[gpt2-fleet] Training GPT-2: {config.n_layer}L {config.n_head}H "
+          f"{config.n_embd}D (~{config.param_count():,} params)")
+
+    result = train_fleet_gpt2(
+        commits=all_commits,
+        epochs=args.epochs,
+        batch_size=args.batch_size,
+        learning_rate=args.lr,
+        config=config,
+        verbose=True,
+    )
+
+    # ── Export tile ────────────────────────────────────────────────
+    tile = export_tile(result, store_dir=args.store_dir, room_name=args.room)
+
+    w = 52
+    print(f"\n{'─' * w}")
+    print(f"  tile_id       {tile.tile_id}")
+    print(f"  params        {result.params_count:,}")
+    print(f"  val_accuracy  {result.val_accuracy:.2%}")
+    print(f"  val_loss      {result.val_loss:.4f}")
+    print(f"  train_time    {result.training_seconds:.1f}s")
+    print(f"  commits_used  {len(all_commits)}")
+    print(f"  store         {args.store_dir}")
+    print(f"{'─' * w}")
+
+    # ── Demo prediction ───────────────────────────────────────────
+    if args.demo:
+        print("\n[gpt2-fleet] Demo predictions:")
+        import datetime as _dt
+        now = _dt.datetime.now(tz=_dt.timezone.utc)
+        for repo in repos[:5]:
+            pred = predict_next_hour(
+                model=result.model,
+                repo=repo,
+                current_hour=now.hour,
+                current_day=now.weekday(),
+                recent_languages=[".py"],
+                recent_commit_counts=[1, 0, 0, 2, 1],
+            )
+            bar_len = 30
+            top3 = sorted(enumerate(pred["probabilities"]), key=lambda x: -x[1])[:3]
+            print(f"  {repo:30s} → bin {pred['predicted_count_bin']} "
+                  f"(conf {pred['confidence']:.2f}) "
+                  f"top: {[(b, f'{p:.2f}') for b, p in top3]}")
+
+    return 0
+
+
+def cmd_collective(args: argparse.Namespace) -> int:
+    """Run collective inference loop against fleet repos."""
+    from .collective_loop import CollectiveLoop
+
+    token_path = Path.home() / ".openclaw/workspace/.credentials/github-pat.txt"
+    token = None
+    if token_path.exists():
+        token = token_path.read_text().strip()
+    if not token:
+        print("error: no GitHub PAT found", file=sys.stderr)
+        return 1
+
+    repos = args.repos.split(",") if args.repos else None
+
+    loop = CollectiveLoop(
+        github_token=token,
+        plato_url=args.plato_url,
+        clone_dir=args.clone_dir,
+        history_file=args.history,
+        org=args.org,
+    )
+
+    if args.mode == "once":
+        print("[collective] Running single cycle ...\n")
+        result = loop.run_cycle(repos=repos)
+        _print_cycle(result)
+        return 0
+
+    elif args.mode == "run":
+        print(f"[collective] Continuous mode: {args.interval}min interval, "
+              f"max {args.cycles} cycles\n")
+        loop.run_forever(
+            interval_minutes=args.interval,
+            max_cycles=args.cycles,
+            repos=repos,
+        )
+        return 0
+
+    elif args.mode == "status":
+        import json as _json
+        hist = Path(args.history)
+        if not hist.exists():
+            print("[collective] No history file found. Run 'collective once' first.")
+            return 0
+        data = _json.loads(hist.read_text())
+        cycles = data.get("cycle_count", 0)
+        gap = data.get("cumulative_gap", 0.0)
+        pending = len(data.get("pending_predictions", []))
+        last_ts = data.get("last_cycle", 0)
+        from datetime import datetime as _dt, timezone as _tz
+        last_str = _dt.fromtimestamp(last_ts, tz=_tz.utc).isoformat() if last_ts else "never"
+        baseline = data.get("baseline_velocity", {})
+        print(f"[collective] Status:")
+        print(f"  cycles_run     {cycles}")
+        print(f"  cumulative_gap {gap:.4f}")
+        print(f"  pending_preds  {pending}")
+        print(f"  last_cycle     {last_str}")
+        if baseline:
+            print(f"  velocity ({len(baseline)} repos):")
+            for repo, vel in sorted(baseline.items(), key=lambda x: -x[1])[:10]:
+                print(f"    {repo:30s} λ={vel:.2f}/hr")
+        return 0
+
+    print(f"error: unknown mode '{args.mode}'. Use: once, run, status", file=sys.stderr)
+    return 1
+
+
+def _print_cycle(result) -> None:
+    """Pretty-print a CycleResult."""
+    from datetime import datetime as _dt, timezone as _tz
+    ts = _dt.fromtimestamp(result.timestamp, tz=_tz.utc).isoformat()
+    w = 52
+    print(f"{'─' * w}")
+    print(f"  cycle_id       {result.cycle_id}")
+    print(f"  timestamp      {ts}")
+    print(f"  repos_observed {result.repos_observed}")
+    print(f"  commits        {result.commits_observed}")
+    print(f"  predictions    {result.predictions_made} made, "
+          f"{result.predictions_correct} correct, "
+          f"{result.predictions_missed} missed")
+    print(f"  gap_score      {result.gap_score:.4f}")
+    if result.focus_items:
+        print(f"  focus_items    {len(result.focus_items)}")
+        for fi in result.focus_items[:5]:
+            print(f"    {fi.get('type', '?'):20s} {fi.get('repo', '?')}")
+    if result.top_synergies:
+        print(f"  synergies      {len(result.top_synergies)}")
+        for s in result.top_synergies[:5]:
+            print(f"    {s['source']} → {s['target']}")
+    if result.velocity_by_repo:
+        print(f"  velocity:")
+        for repo, vel in sorted(result.velocity_by_repo.items(), key=lambda x: -x[1])[:8]:
+            print(f"    {repo:30s} λ={vel:.2f}/hr")
+    print(f"{'─' * w}")
+
+
 # ---------------------------------------------------------------------------
 # Argument parser
 # ---------------------------------------------------------------------------
@@ -624,6 +822,64 @@ def _build_parser() -> argparse.ArgumentParser:
     p_serve = sub.add_parser("serve", help="(future) Start HTTP API server")
     p_serve.add_argument("--port", type=int, default=8080)
     p_serve.set_defaults(func=cmd_serve)
+
+    # ── gpt2-fleet ─────────────────────────────────────────────────────────
+    p_gpt2 = sub.add_parser(
+        "gpt2-fleet",
+        help="Train tiny GPT-2 on fleet git commit data",
+        epilog=(
+            "examples:\n"
+            "  plato-train gpt2-fleet --room fleet-predictor\n"
+            "  plato-train gpt2-fleet --repos plato-training,forgemaster --epochs 30 --demo\n"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    p_gpt2.add_argument("--room", default="gpt2-fleet-predictor", help="Room name")
+    p_gpt2.add_argument("--org", default="SuperInstance", help="GitHub org")
+    p_gpt2.add_argument("--repos", default=None,
+                        help="Comma-separated repos (default: 10 fleet repos)")
+    p_gpt2.add_argument("--max-commits", type=int, default=200, dest="max_commits",
+                        help="Max commits per repo to mine")
+    p_gpt2.add_argument("--epochs", type=int, default=20)
+    p_gpt2.add_argument("--batch-size", type=int, default=16, dest="batch_size")
+    p_gpt2.add_argument("--lr", type=float, default=1e-3)
+    p_gpt2.add_argument("--layers", type=int, default=2)
+    p_gpt2.add_argument("--heads", type=int, default=4)
+    p_gpt2.add_argument("--embed", type=int, default=128)
+    p_gpt2.add_argument("--block-size", type=int, default=64, dest="block_size")
+    p_gpt2.add_argument("--clone-dir", default="/tmp/fleet-mine", dest="clone_dir")
+    p_gpt2.add_argument("--store-dir", default=".plato-training", dest="store_dir")
+    p_gpt2.add_argument("--demo", action="store_true",
+                        help="Show demo predictions after training")
+    p_gpt2.set_defaults(func=cmd_gpt2_fleet)
+
+    # ── collective ─────────────────────────────────────────────────────────
+    p_coll = sub.add_parser(
+        "collective",
+        help="Collective inference loop against fleet repos",
+        epilog=(
+            "examples:\n"
+            "  plato-train collective once\n"
+            "  plato-train collective run --interval 15 --cycles 10\n"
+            "  plato-train collective status\n"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    p_coll.add_argument("mode", choices=["once", "run", "status"],
+                        help="once=single cycle, run=continuous, status=show state")
+    p_coll.add_argument("--org", default="SuperInstance", help="GitHub org")
+    p_coll.add_argument("--repos", default=None,
+                        help="Comma-separated repos (default: fleet set)")
+    p_coll.add_argument("--plato-url", default="http://147.224.38.131:8847",
+                        dest="plato_url")
+    p_coll.add_argument("--clone-dir", default="/tmp/fleet-mine", dest="clone_dir")
+    p_coll.add_argument("--history", default="/tmp/collective-history.json",
+                        help="History persistence file")
+    p_coll.add_argument("--interval", type=float, default=30.0,
+                        help="Minutes between cycles (run mode)")
+    p_coll.add_argument("--cycles", type=int, default=0,
+                        help="Max cycles (0=unlimited)")
+    p_coll.set_defaults(func=cmd_collective)
 
     return parser
 
