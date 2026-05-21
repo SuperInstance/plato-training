@@ -21,8 +21,11 @@ Training pipeline:
 Target: RTX 4050 (6GB VRAM), ~4M params, <5 min training.
 """
 
+
+
 from __future__ import annotations
 import time
+__all__ = ['FleetGPT2', 'FleetMultiTaskDataset', 'FleetTrainResult', 'GPUFleetConfig', 'compress_with_spline', 'export_gpu_tile', 'predict_fleet_gpu', 'run_full_pipeline', 'train_gpu_fleet']
 import math
 import json
 import hashlib
@@ -205,6 +208,10 @@ class FleetMultiTaskDataset(Dataset):
             "lm_labels": torch.tensor(s["lm_labels"], dtype=torch.long),
         }
 
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(commits={self.commits!r}, config={self.config!r})"
+
+
 
 # ─── Multi-Task GPT-2 ─────────────────────────────────────────────
 
@@ -360,6 +367,10 @@ class FleetGPT2(nn.Module):
             result["lm_loss"] = F.cross_entropy(lm_flat, lab_flat, ignore_index=pad_id)
 
         return result
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(config={self.config!r})"
+
 
 
 # ─── GPU Training Pipeline ────────────────────────────────────────

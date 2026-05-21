@@ -4,6 +4,9 @@ Replaces keyword-overlap matching with Model2Vec embeddings + FAISS.
 Target: 85%+ cache hit rate (up from 50% with keywords).
 """
 
+
+__all__ = ['SemanticStore', 'keyword_match']
+
 import gc
 import json
 import time
@@ -111,6 +114,10 @@ class SemanticStore:
             self.id_map = meta["id_map"]
             self.text_map = meta["text_map"]
             self.dim = meta["dim"]
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(dim={self.dim!r}, model_name={self.model_name!r})"
+
 
 
 def keyword_match(query: str, texts: Dict[str, str], threshold: float = 0.3) -> List[Dict]:

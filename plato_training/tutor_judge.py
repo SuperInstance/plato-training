@@ -7,10 +7,14 @@ Three-tier cascade: exact → bitvector → semantic.
 CPU only, no GPU required.
 """
 
+
+
 from __future__ import annotations
 
+__all__ = ['JudgeSpecs', 'TutorJudge', 'hamming_distance', 'run_benchmark', 'word_similarity', 'word_to_bitvector']
 import math
 import re
+import threading
 import time
 from dataclasses import dataclass, field
 from typing import Optional
@@ -201,6 +205,7 @@ class TutorJudge:
 
     def __init__(self, specs: JudgeSpecs | None = None):
         self.specs = specs or JudgeSpecs()
+        self._lock = threading.Lock()
         self.concepts: dict[str, set[str]] = {}
         self._semantic_model = None
         self._semantic_available: bool | None = None
@@ -209,7 +214,8 @@ class TutorJudge:
 
     def add_concept(self, name: str, words: list[str] | set[str]) -> None:
         """Add a vocabulary cluster (TUTOR concept/vocabs)."""
-        self.concepts[name] = {w.lower().strip() for w in words if w.strip()}
+        with self._lock:
+            self.concepts[name] = {w.lower().strip() for w in words if w.strip()}
 
     # -- Semantic model (lazy load) --
 
@@ -525,6 +531,10 @@ class TutorJudge:
             'method': 'numerical',
             'parsed': parsed,
         }
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(specs={self.specs!r})"
+
 
 
 # ---------------------------------------------------------------------------

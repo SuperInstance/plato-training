@@ -5,8 +5,11 @@ Runs on RTX 4050 (6.4GB VRAM) comfortably with a ~2M param model.
 Trains on text extracted from PLATO tiles. Saves checkpoints as tiles.
 """
 
+
+
 from __future__ import annotations
 import time
+__all__ = ['BpeTokenizer', 'CausalSelfAttention', 'CharTokenizer', 'GPT2Config', 'GPT2Model', 'GPT2Room', 'MLP', 'NewGELU', 'TileTextDataset', 'TrainingTracker', 'TransformerBlock', 'build_tokenizer']
 import math
 import json
 import torch
@@ -107,6 +110,10 @@ class CausalSelfAttention(nn.Module):
         y = self.resid_dropout(self.c_proj(y))
         return y
 
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(config={self.config!r})"
+
+
 
 # ─── MLP (GELU) ───────────────────────────────────────────────────
 
@@ -117,6 +124,10 @@ class NewGELU(nn.Module):
         return 0.5 * x * (1.0 + torch.tanh(
             math.sqrt(2.0 / math.pi) * (x + 0.044715 * torch.pow(x, 3.0))
         ))
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}()"
+
 
 
 class MLP(nn.Module):
@@ -136,6 +147,10 @@ class MLP(nn.Module):
         x = self.dropout(x)
         return x
 
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(config={self.config!r})"
+
+
 
 # ─── Transformer Block ────────────────────────────────────────────
 
@@ -153,6 +168,10 @@ class TransformerBlock(nn.Module):
         x = x + self.attn(self.ln_1(x))
         x = x + self.mlp(self.ln_2(x))
         return x
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(config={self.config!r})"
+
 
 
 # ─── GPT-2 Model ──────────────────────────────────────────────────
@@ -301,6 +320,10 @@ class GPT2Model(nn.Module):
         self.train()
         return input_ids
 
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(config={self.config!r})"
+
+
 
 # ─── Text Tokenizer ────────────────────────────────────────────────
 
@@ -339,6 +362,10 @@ class CharTokenizer:
             data = json.load(f)
         return cls(chars=data["chars"])
 
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(chars={self.chars!r})"
+
+
 
 class BpeTokenizer:
     """Simple BPE tokenizer wrapper (uses tiktoken if available)."""
@@ -372,6 +399,10 @@ class BpeTokenizer:
         if self._available:
             return self.encoder.decode(ids)
         raise RuntimeError("tiktoken not installed")
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(model_name={self.model_name!r})"
+
 
 
 def build_tokenizer(chars: Optional[str] = None) -> CharTokenizer:
@@ -433,6 +464,10 @@ class TileTextDataset(Dataset):
         x = torch.tensor(self.tokens[i:i + self.block_size], dtype=torch.long)
         y = torch.tensor(self.tokens[i + 1:i + self.block_size + 1], dtype=torch.long)
         return x, y
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(texts={self.texts!r}, tokenizer={self.tokenizer!r}, block_size={self.block_size!r}, stride={self.stride!r})"
+
 
 
 # ─── Training Tracker ──────────────────────────────────────────────
@@ -514,6 +549,10 @@ class TrainingTracker:
             metrics=self.get_metrics(),
             source_room=self.room_name,
         )
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(store={self.store!r}, room_name={self.room_name!r})"
+
 
 
 # ─── GPT-2 Room ────────────────────────────────────────────────────
@@ -927,3 +966,6 @@ class GPT2Room:
         model.to(self.device)
         print(f"Loaded checkpoint {tile.tile_id} ({tile.description})")
         return model
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(room_name={self.room_name!r}, store_dir={self.store_dir!r}, device={self.device!r}, throttle={self.throttle!r}, alpha={self.alpha!r})"

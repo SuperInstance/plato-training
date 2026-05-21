@@ -8,8 +8,11 @@ The Eisenstein lattice IS the protocol.
 The agent IS the score. Rooms are standing waves in the resonance chamber.
 """
 
+
+
 from __future__ import annotations
 import math
+__all__ = ['AgentField', 'CHANNEL_NAMES', 'RoomMeta']
 from typing import Dict, List, Optional, Tuple
 from dataclasses import dataclass, field
 
@@ -403,3 +406,7 @@ class AgentField:
             )
         
         return "\n".join(lines)
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(bpm={self.bpm!r}, damping={self.damping!r})"
+

@@ -2,6 +2,9 @@
 LoRA implementation with save/load round-trip.
 """
 
+
+__all__ = ['LoRALayer', 'inject_lora', 'load_lora_weights', 'save_lora_weights']
+
 import math
 import torch
 import torch.nn as nn
@@ -47,6 +50,10 @@ class LoRALayer(nn.Module):
 
     def lora_state_dict(self):
         return {"lora_A": self.lora_A.data.clone(), "lora_B": self.lora_B.data.clone()}
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(original={self.original!r}, rank={self.rank!r}, alpha={self.alpha!r}, dropout={self.dropout!r})"
+
 
 
 def inject_lora(model, rank=8, alpha=16, target_modules=None, dropout=0.0):

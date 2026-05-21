@@ -22,6 +22,9 @@ Core loop (per room, per instance):
 This is how a fleet of instances collectively discovers what they don't know.
 """
 
+
+__all__ = ['FocusQueue', 'GapSeverity', 'GapSignal', 'RoomAddress', 'RoomKind', 'SimulationRoom', 'TMinusEvent']
+
 import json
 import time
 import hashlib
@@ -43,6 +46,10 @@ class RoomKind(Enum):
     BRIDGE = "bridge"         # I2I connection to another instance
     TRAINING = "training"     # trains models
     INference = "inference"   # runs inference
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}()"
+
 
 
 @dataclass
@@ -121,6 +128,10 @@ class GapSeverity(Enum):
     MEDIUM = "medium"     # significant, needs attention
     HIGH = "high"         # major gap, understanding is wrong
     CRITICAL = "critical" # fundamental model failure
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}()"
+
 
 @dataclass
 class GapSignal:
@@ -223,6 +234,10 @@ class FocusQueue:
                 for g in self.top(3)
             ],
         }
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}()"
+
 
 
 # ─── Simulation-First Room ─────────────────────────────────────────
@@ -397,3 +412,7 @@ class SimulationRoom:
                 f"predicted={gap.prediction.predicted_value} actual={gap.actual}"
             )
         return "\n".join(lines)
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(address={self.address!r}, kind={self.kind!r}, tolerance={self.tolerance!r})"
+

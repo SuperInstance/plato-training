@@ -6,8 +6,11 @@ Architecture: 2-layer MLP with SplineLinear (256→128→output heads)
 ~40K params dense, ~4K after spline compression.
 """
 
+
+
 from __future__ import annotations
 
+__all__ = ['FEATURE_DIM', 'FilterDecision', 'HIDDEN_DIM', 'KEEP_DECISIONS', 'KnowledgeTile', 'MODEL_NAMES', 'PostFilter', 'PostFilterModel', 'RESPONSE_TYPES', 'ROUTE_NAMES', 'ResponseFeatures', 'TILE_DOMAINS']
 import hashlib
 import math
 import re
@@ -254,6 +257,10 @@ class PostFilterModel(nn.Module):
 
     def param_count(self) -> int:
         return sum(p.numel() for p in self.parameters())
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(n_control_points={self.n_control_points!r})"
+
 
 
 # ---------------------------------------------------------------------------
@@ -508,3 +515,7 @@ class PostFilter:
     @property
     def tile_count(self) -> int:
         return len(self._tiles)
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(n_control_points={self.n_control_points!r}, lr={self.lr!r})"
+

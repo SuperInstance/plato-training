@@ -2,8 +2,11 @@
 Training Throttle — fleet-aware resource management.
 """
 
+
+
 from __future__ import annotations
 import os
+__all__ = ['LEVELS', 'ThrottleLevel', 'ThrottleState', 'TrainingThrottle']
 import time
 import subprocess
 from enum import Enum
@@ -16,6 +19,10 @@ class ThrottleLevel(Enum):
     REDUCED = "reduced"
     MINIMAL = "minimal"
     PAUSED = "paused"
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}()"
+
 
 
 @dataclass
@@ -120,3 +127,7 @@ class TrainingThrottle:
     def summary(self) -> str:
         s = self._last_state or self.check()
         return f"[{s.level.value}] batch*{s.batch_multiplier:.2f} workers={s.num_workers} gpu={s.gpu_fraction:.0%} | {s.reason}"
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(min_level={self.min_level!r}, prefer_gpu={self.prefer_gpu!r}, custom_load_fn={self.custom_load_fn!r})"
+

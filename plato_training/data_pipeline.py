@@ -12,6 +12,9 @@ Usage:
     train, val, test = pipeline.run()
 """
 
+
+__all__ = ['CSVLoader', 'ColumnSchema', 'CommitFeatureExtractor', 'DataContainer', 'DataLoader', 'DataSchema', 'DataSplitter', 'DataVersion', 'FeatureLineage', 'FeatureStore', 'FunctionTransform', 'GitCommitLoader', 'IdentityTransform', 'JSONLLoader', 'Pipeline', 'PlatoLoader', 'RandomSplitter', 'StratifiedSplitter', 'TemporalSplitter', 'Transform']
+
 import hashlib
 import json
 import csv
@@ -183,6 +186,10 @@ class DataContainer:
     def get_column(self, name: str) -> List[Any]:
         return [row.get(name) for row in self._rows]
 
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(name={self.name!r}, schema={self.schema!r}, clock={self.clock!r})"
+
+
 
 # ─── DataLoader Sources ────────────────────────────────────────────
 
@@ -191,6 +198,10 @@ class DataLoader:
     """Base class for data loaders."""
     def load(self) -> List[Dict[str, Any]]:
         raise NotImplementedError
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}()"
+
 
 
 class CSVLoader(DataLoader):
@@ -231,6 +242,10 @@ class CSVLoader(DataLoader):
                 rows.append(parsed)
         return rows
 
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(path={self.path!r}, delimiter={self.delimiter!r}, encoding={self.encoding!r}, max_rows={self.max_rows!r})"
+
+
 
 class JSONLLoader(DataLoader):
     """Load data from JSONL (one JSON object per line) files."""
@@ -250,6 +265,10 @@ class JSONLLoader(DataLoader):
                     continue
                 rows.append(json.loads(line))
         return rows
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(path={self.path!r}, max_rows={self.max_rows!r})"
+
 
 
 class PlatoLoader(DataLoader):
@@ -275,6 +294,10 @@ class PlatoLoader(DataLoader):
 
         tiles = data.get("tiles", data if isinstance(data, list) else [])
         return tiles[:self.max_tiles]
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(room={self.room!r}, server={self.server!r}, max_tiles={self.max_tiles!r}, timeout={self.timeout!r})"
+
 
 
 class GitCommitLoader(DataLoader):
@@ -306,6 +329,10 @@ class GitCommitLoader(DataLoader):
                 continue  # Skip repos that fail
         return rows
 
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(repos={self.repos!r}, max_per_repo={self.max_per_repo!r}, org={self.org!r}, token={self.token!r}, clone_dir={self.clone_dir!r})"
+
+
 
 # ─── Transforms ────────────────────────────────────────────────────
 
@@ -314,6 +341,10 @@ class Transform:
     """Base class for data transforms."""
     def apply(self, rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         raise NotImplementedError
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}()"
+
 
 
 class CommitFeatureExtractor(Transform):
@@ -348,11 +379,19 @@ class CommitFeatureExtractor(Transform):
             result.append(features)
         return result
 
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(feature_columns={self.feature_columns!r})"
+
+
 
 class IdentityTransform(Transform):
     """Pass-through transform."""
     def apply(self, rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         return list(rows)
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}()"
+
 
 
 class FunctionTransform(Transform):
@@ -362,6 +401,10 @@ class FunctionTransform(Transform):
 
     def apply(self, rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         return self.fn(rows)
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(fn={self.fn!r})"
+
 
 
 # ─── FeatureStore ──────────────────────────────────────────────────
@@ -526,6 +569,10 @@ class FeatureStore:
     def is_valid(self) -> bool:
         return bool(self._features) and self._n_rows > 0
 
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(name={self.name!r})"
+
+
 
 # ─── DataSplitter ──────────────────────────────────────────────────
 
@@ -535,6 +582,10 @@ class DataSplitter:
     def split(self, rows: List[Dict[str, Any]]) -> Tuple[List, List, List]:
         """Returns (train, val, test)."""
         raise NotImplementedError
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}()"
+
 
 
 class RandomSplitter(DataSplitter):
@@ -560,6 +611,10 @@ class RandomSplitter(DataSplitter):
         test = [rows[i] for i in indices[val_end:]]
 
         return train, val, test
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(train={self.train!r}, val={self.val!r}, test={self.test!r}, seed={self.seed!r})"
+
 
 
 class TemporalSplitter(DataSplitter):
@@ -597,6 +652,10 @@ class TemporalSplitter(DataSplitter):
         test = sorted_rows[val_end:]
 
         return train, val, test
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(train={self.train!r}, val={self.val!r}, test={self.test!r}, time_key={self.time_key!r})"
+
 
 
 class StratifiedSplitter(DataSplitter):
@@ -638,6 +697,10 @@ class StratifiedSplitter(DataSplitter):
             test.extend(group[i] for i in indices[val_end:])
 
         return train, val, test
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(label_key={self.label_key!r}, train={self.train!r}, val={self.val!r}, test={self.test!r}, seed={self.seed!r})"
+
 
 
 # ─── Pipeline ──────────────────────────────────────────────────────
@@ -729,3 +792,7 @@ class Pipeline:
             "transform_type": type(self.transform).__name__,
             "splitter_type": type(self.splitter).__name__,
         }
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(source={self.source!r}, transform={self.transform!r}, split={self.split!r}, feature_store={self.feature_store!r}, schema={self.schema!r})"
+

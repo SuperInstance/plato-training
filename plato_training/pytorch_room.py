@@ -2,8 +2,11 @@
 PyTorch Training Room — agent walks in with data, walks out with trained adapter.
 """
 
+
+
 from __future__ import annotations
 import time
+__all__ = ['PyTorchRoom']
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader, Dataset
@@ -154,3 +157,7 @@ class PyTorchRoom:
         if logits.dim() == 2 and targets.dim() == 1: return loss_fn(logits, targets)
         if logits.dim() > 2: return loss_fn(logits.flatten(0, 1), targets.flatten())
         return loss_fn(logits, targets)
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(room_name={self.room_name!r}, store_dir={self.store_dir!r}, device={self.device!r}, throttle={self.throttle!r})"
+

@@ -45,8 +45,12 @@ Key integration points:
   4. novelty scoring (_compute_novelty): Use semantic.match() instead of overlap
 """
 
+
+
 from __future__ import annotations
 import gc
+import threading
+__all__ = ['SemanticMatcher']
 from typing import Dict, List, Optional, Tuple
 
 
@@ -60,6 +64,7 @@ class SemanticMatcher:
 
     def __init__(self, dim: int = 256, threshold: float = 0.6):
         self.threshold = threshold
+        self._lock = threading.Lock()
         self._embedder = None
         self._index = None
         self._id_map: List[str] = []
@@ -84,52 +89,56 @@ class SemanticMatcher:
 
     def add(self, key: str, text: str) -> None:
         """Index a knowledge entry."""
-        if self._use_semantic:
-            vec = self._embedder.encode([text]).astype("float32")
-            import faiss
-            faiss.normalize_L2(vec)
-            self._index.add(vec)
-            self._id_map.append(key)
-            self._text_map[key] = text
+        with self._lock:
+            if self._use_semantic:
+                vec = self._embedder.encode([text]).astype("float32")
+                import faiss
+                faiss.normalize_L2(vec)
+                self._index.add(vec)
+                self._id_map.append(key)
+                self._text_map[key] = text
 
     def match(self, query: str) -> Optional[Tuple[str, float, str]]:
         """
         Find best matching knowledge entry.
         Returns (key, score, text) or None if no match above threshold.
         """
-        if not self._use_semantic or self._index.ntotal == 0:
+        with self._lock:
+            if not self._use_semantic or self._index.ntotal == 0:
+                return None
+
+            vec = self._embedder.encode([query]).astype("float32")
+            import faiss
+            faiss.normalize_L2(vec)
+            scores, indices = self._index.search(vec, 1)
+
+            if indices[0][0] >= 0 and scores[0][0] >= self.threshold:
+                key = self._id_map[indices[0][0]]
+                return (key, float(scores[0][0]), self._text_map[key])
             return None
-
-        vec = self._embedder.encode([query]).astype("float32")
-        import faiss
-        faiss.normalize_L2(vec)
-        scores, indices = self._index.search(vec, 1)
-
-        if indices[0][0] >= 0 and scores[0][0] >= self.threshold:
-            key = self._id_map[indices[0][0]]
-            return (key, float(scores[0][0]), self._text_map[key])
-        return None
 
     def match_top_k(self, query: str, k: int = 5) -> List[Tuple[str, float, str]]:
         """Find top-k matches above threshold."""
-        if not self._use_semantic or self._index.ntotal == 0:
-            return []
+        with self._lock:
+            if not self._use_semantic or self._index.ntotal == 0:
+                return []
 
-        vec = self._embedder.encode([query]).astype("float32")
-        import faiss
-        faiss.normalize_L2(vec)
-        scores, indices = self._index.search(vec, min(k, self._index.ntotal))
+            vec = self._embedder.encode([query]).astype("float32")
+            import faiss
+            faiss.normalize_L2(vec)
+            scores, indices = self._index.search(vec, min(k, self._index.ntotal))
 
-        results = []
-        for i in range(len(indices[0])):
-            idx = indices[0][i]
-            if idx >= 0 and scores[0][i] >= self.threshold:
-                key = self._id_map[idx]
-                results.append((key, float(scores[0][i]), self._text_map[key]))
-        return results
+            results = []
+            for i in range(len(indices[0])):
+                idx = indices[0][i]
+                if idx >= 0 and scores[0][i] >= self.threshold:
+                    key = self._id_map[idx]
+                    results.append((key, float(scores[0][i]), self._text_map[key]))
+            return results
 
     def size(self) -> int:
-        return self._index.ntotal if self._use_semantic else 0
+        with self._lock:
+            return self._index.ntotal if self._use_semantic else 0
 
     def keyword_fallback(self, query: str, texts: Dict[str, str]) -> Optional[Tuple[str, float, str]]:
         """
@@ -147,3 +156,7 @@ class SemanticMatcher:
                 best_score = overlap
                 best = (key, overlap, text)
         return best
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(dim={self._dim}, threshold={self.threshold!r}, indexed={self.size()})"
+

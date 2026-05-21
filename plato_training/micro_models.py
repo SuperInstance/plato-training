@@ -7,6 +7,9 @@ seconds on synthetic data, proving the pipeline works end-to-end.
 Ensigns (junior agents) get these as room skills. Click-button deployment.
 """
 
+
+__all__ = ['MicroClassifier', 'SplineClassifier', 'bench_all_tasks', 'list_tasks', 'train_micro']
+
 import torch
 import torch.nn as nn
 import numpy as np
@@ -199,6 +202,10 @@ class MicroClassifier(nn.Module):
         x = self.relu(self.W_value(x))
         return self.out_head(x)
 
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(input_dim={self.input_dim!r}, hidden={self.hidden!r}, num_classes={self.num_classes!r})"
+
+
 
 class SplineClassifier(nn.Module):
     """Same architecture but with SplineLinear layers. ~50 params."""
@@ -216,6 +223,10 @@ class SplineClassifier(nn.Module):
         x = self.dropout(x)
         x = self.relu(self.W_value(x))
         return self.out_head(x)
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(input_dim={self.input_dim!r}, hidden={self.hidden!r}, num_classes={self.num_classes!r}, n_control_points={self.n_control_points!r})"
+
 
 
 # ─── Training Pipeline ─────────────────────────────────────────────

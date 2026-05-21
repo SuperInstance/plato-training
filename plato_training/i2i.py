@@ -19,6 +19,9 @@ Tile schemas:
 Each tile is self-describing JSON. Any language, any hardware.
 """
 
+
+__all__ = ['I2IBridge', 'I2IMessage', 'InstanceID', 'TILE_SCHEMAS', 'tile_id', 'validate_tile']
+
 import json
 import time
 import hashlib
@@ -286,3 +289,7 @@ class I2IBridge:
             "sent": len(self.outbox),
             "received": len(self.inbox),
         }
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(identity={self.identity!r}, transport={self.transport!r}, plato_url={self.plato_url!r}, local_dir={self.local_dir!r})"
+

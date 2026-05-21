@@ -2,8 +2,11 @@
 PLATO Training Rooms — Core types.
 """
 
+
+
 from __future__ import annotations
 import json
+__all__ = ['AdapterConfig', 'LamportClock', 'LifecycleEvent', 'TileLifecycle', 'TileType', 'TrainingConfig', 'TrainingMetrics', 'TrainingTile', 'content_hash']
 import hashlib
 import time
 from dataclasses import dataclass, field, asdict
@@ -19,11 +22,19 @@ class TileType(Enum):
     EVALUATION = "evaluation"
     PREDICTION = "prediction"
 
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}()"
+
+
 
 class TileLifecycle(Enum):
     ACTIVE = "active"
     SUPERSEDED = "superseded"
     RETRACTED = "retracted"
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}()"
+
 
 
 @dataclass
@@ -156,3 +167,7 @@ class LamportClock:
         return self.time
     def now(self):
         return self.time
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(time={self.time!r})"
+

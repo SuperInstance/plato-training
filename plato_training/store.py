@@ -5,8 +5,11 @@ No PLATO server required. Tiles persist to disk as JSON.
 PLATO client can swap in later without changing room code.
 """
 
+
+
 from __future__ import annotations
 import json
+__all__ = ['LocalTileStore', 'TileStore']
 from pathlib import Path
 from typing import Optional, List, Dict
 from .types import TrainingTile, TileType, TileLifecycle
@@ -17,6 +20,10 @@ class TileStore:
     def save(self, tile: TrainingTile) -> None: raise NotImplementedError
     def load(self, tile_id: str) -> Optional[TrainingTile]: raise NotImplementedError
     def list_tiles(self, room=None, tile_type=None, state=None) -> List[TrainingTile]: raise NotImplementedError
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}()"
+
 
 
 class LocalTileStore(TileStore):
@@ -79,3 +86,7 @@ class LocalTileStore(TileStore):
             "superseded": sum(1 for t in all_tiles if t.state == TileLifecycle.SUPERSEDED),
             "retracted": sum(1 for t in all_tiles if t.state == TileLifecycle.RETRACTED),
         }
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(store_dir={self.store_dir!r})"
+

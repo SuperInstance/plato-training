@@ -11,8 +11,11 @@ Architecture:
 Target: < 50KB total, competitive with Model2Vec at 100x smaller.
 """
 
+
+
 from __future__ import annotations
 
+__all__ = ['ContrastiveTrainer', 'EisensteinEncoder']
 import gc
 from typing import List, Optional, Tuple
 
@@ -126,6 +129,10 @@ class EisensteinEncoder(nn.Module):
     def uses_spline(self) -> bool:
         return self._uses_spline
 
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(vocab_size={self.vocab_size!r}, embed_dim={self.embed_dim!r}, out_dim={self.out_dim!r})"
+
+
 
 # ---------------------------------------------------------------------------
 # Contrastive training
@@ -186,6 +193,10 @@ class ContrastiveTrainer:
                 loss = self.train_step(anchor, positive, negative)
                 losses.append(loss)
         return losses
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(encoder={self.encoder!r})"
+
 
 
 # ---------------------------------------------------------------------------

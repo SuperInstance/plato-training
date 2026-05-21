@@ -11,6 +11,9 @@ Architecture: small dense network (deploy_micro-compatible).
 Training data: fleet miner output.
 """
 
+
+__all__ = ['AUTHOR_VOCAB_SIZE', 'CommitPredictor', 'LANG_VOCAB', 'PredictionSample', 'REPO_VOCAB', 'build_prediction_dataset', 'commit_to_features', 'day_features', 'hour_features', 'lang_features', 'repo_onehot', 'train_commit_predictor']
+
 import json
 import time
 import math
@@ -381,6 +384,10 @@ class CommitPredictor:
         model.W_crossref = data["W_crossref"]
         model.b_crossref = data["b_crossref"]
         return model
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(input_dim={self.input_dim!r}, hidden_dim={self.hidden_dim!r}, lr={self.lr!r})"
+
 
 
 # ─── Training Pipeline ───────────────────────────────────────────────

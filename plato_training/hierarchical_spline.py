@@ -13,6 +13,9 @@ Usage:
     # vs 256*128 = 32,768 dense params → 409:1 compression
 """
 
+
+__all__ = ['HierarchicalSplineClassifier', 'HierarchicalSplineLinear', 'inject_hierarchical_spline']
+
 import math
 import torch
 import torch.nn as nn
@@ -169,6 +172,10 @@ class HierarchicalSplineLinear(nn.Module):
     def compression_ratio(self) -> float:
         return self.num_equivalent_dense_params() / max(self.num_control_params(), 1)
 
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(in_features={self.in_features!r}, out_features={self.out_features!r}, coarse_pts={self.coarse_pts!r}, fine_pts={self.fine_pts!r}, patch_size={self.patch_size!r})"
+
+
 
 class HierarchicalSplineClassifier(nn.Module):
     """Classifier using hierarchical spline for high-dim tasks."""
@@ -193,6 +200,10 @@ class HierarchicalSplineClassifier(nn.Module):
         x = self.dropout(x)
         x = self.relu(self.W_value(x))
         return self.out_head(x)
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(input_dim={self.input_dim!r}, hidden={self.hidden!r}, num_classes={self.num_classes!r}, coarse_pts={self.coarse_pts!r}, fine_pts={self.fine_pts!r})"
+
 
 
 def inject_hierarchical_spline(

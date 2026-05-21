@@ -24,8 +24,12 @@ Token savings compound: as models improve, fewer LLM calls needed,
 and each call is better-targeted (fewer wasted tokens).
 """
 
+
+
 from __future__ import annotations
 import time
+import threading
+__all__ = ['IntelligenceExperience', 'IntelligenceRoom', 'IntelligenceTileType', 'KeepDecision', 'KnowledgeTile', 'Route']
 import json
 import hashlib
 import numpy as np
@@ -85,6 +89,10 @@ class IntelligenceTileType(Enum):
     MODEL_CHECKPOINT = "checkpoint"   # Micro-model weights
     VALIDATION_RESULT = "validation"  # Model quality assessment
 
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}()"
+
+
 
 class Route(Enum):
     """Possible routing decisions for a request."""
@@ -97,6 +105,10 @@ class Route(Enum):
     USE_REASONING = 6      # DeepSeek v4-pro ($0.10)
     DELEGATE = 7           # Hand off to subagent
 
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}()"
+
+
 
 class KeepDecision(Enum):
     """Post-filter decision on what to keep from response."""
@@ -105,6 +117,10 @@ class KeepDecision(Enum):
     FULL = 2                # Keep full response
     KNOWLEDGE_TILE = 3      # Extract as structured knowledge
     HIGH_PRIORITY = 4       # Critical knowledge, prioritize
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}()"
+
 
 
 # ─── Knowledge Tile ────────────────────────────────────────────────
@@ -220,6 +236,9 @@ class IntelligenceRoom:
         self.knowledge: Dict[str, KnowledgeTile] = {}
         self.experiences: List[IntelligenceExperience] = []
 
+        # Thread safety
+        self._lock = threading.Lock()
+
         # Statistics
         self.stats = {
             "total_requests": 0,
@@ -291,20 +310,21 @@ class IntelligenceRoom:
           - max_tokens: suggested token limit
           - cached_answer: if SKIP_LLM, the cached knowledge
         """
-        self.stats["total_requests"] += 1
+        with self._lock:
+            self.stats["total_requests"] += 1
 
-        # Check knowledge base first (zero-cost)
-        cached = self._check_knowledge(request_text, domain)
-        if cached is not None:
-            self.stats["llm_calls_saved"] += 1
-            self.stats["tokens_saved"] += self._estimate_tokens(request_text) * 2
-            return {
-                "decision": Route.SKIP_LLM,
-                "confidence": cached.confidence,
-                "model_hint": "cached",
-                "max_tokens": 0,
-                "cached_answer": cached.compressed_content,
-            }
+            # Check knowledge base first (zero-cost)
+            cached = self._check_knowledge(request_text, domain)
+            if cached is not None:
+                self.stats["llm_calls_saved"] += 1
+                self.stats["tokens_saved"] += self._estimate_tokens(request_text) * 2
+                return {
+                    "decision": Route.SKIP_LLM,
+                    "confidence": cached.confidence,
+                    "model_hint": "cached",
+                    "max_tokens": 0,
+                    "cached_answer": cached.compressed_content,
+                }
 
         # Use micro-model for routing if available
         if self._pre_filter is not None:
@@ -515,8 +535,9 @@ class IntelligenceRoom:
         keep = self._decide_keep(response_text, tiles, domain)
 
         # Store knowledge tiles
-        for tile in tiles:
-            self._store_knowledge(tile)
+        with self._lock:
+            for tile in tiles:
+                self._store_knowledge(tile)
 
         # Compress if needed
         compressed = response_text
@@ -763,24 +784,25 @@ class IntelligenceRoom:
         user_satisfied: bool = True,
     ):
         """Record the outcome of a completed request."""
-        exp = IntelligenceExperience(
-            exp_id=exp_id,
-            outcome=outcome,
-            tokens_saved=tokens_saved,
-            knowledge_reused=knowledge_reused or [],
-            user_satisfied=user_satisfied,
-        )
-        self.experiences.append(exp)
-        self.stats["tokens_saved"] += tokens_saved
+        with self._lock:
+            exp = IntelligenceExperience(
+                exp_id=exp_id,
+                outcome=outcome,
+                tokens_saved=tokens_saved,
+                knowledge_reused=knowledge_reused or [],
+                user_satisfied=user_satisfied,
+            )
+            self.experiences.append(exp)
+            self.stats["tokens_saved"] += tokens_saved
 
-        # Mark reused knowledge
-        for tile_id in (knowledge_reused or []):
-            if tile_id in self.knowledge:
-                self.knowledge[tile_id].touch()
+            # Mark reused knowledge
+            for tile_id in (knowledge_reused or []):
+                if tile_id in self.knowledge:
+                    self.knowledge[tile_id].touch()
 
-        # Trim experience buffer
-        if len(self.experiences) > self.max_experience:
-            self.experiences = self.experiences[-self.max_experience:]
+            # Trim experience buffer
+            if len(self.experiences) > self.max_experience:
+                self.experiences = self.experiences[-self.max_experience:]
 
     def create_experience(
         self,
@@ -791,25 +813,26 @@ class IntelligenceRoom:
         latency_ms: float = 0.0,
     ) -> IntelligenceExperience:
         """Create an experience record for tracking."""
-        exp_id = hashlib.md5(
-            f"{request_text}:{time.time()}".encode()
-        ).hexdigest()[:12]
+        with self._lock:
+            exp_id = hashlib.md5(
+                f"{request_text}:{time.time()}".encode()
+            ).hexdigest()[:12]
 
-        exp = IntelligenceExperience(
-            exp_id=exp_id,
-            request_hash=hashlib.md5(request_text.encode()).hexdigest()[:12],
-            request_length=len(request_text),
-            domain=route_decision.get("domain", "general"),
-            route_taken=route_decision.get("decision", Route.USE_MEDIUM).name
-                if isinstance(route_decision.get("decision"), Route)
-                else str(route_decision.get("decision", "")),
-            route_confidence=route_decision.get("confidence", 0.0),
-            response_length=len(response_text),
-            response_model=model_used,
-            response_latency_ms=latency_ms,
-        )
-        self.experiences.append(exp)
-        return exp
+            exp = IntelligenceExperience(
+                exp_id=exp_id,
+                request_hash=hashlib.md5(request_text.encode()).hexdigest()[:12],
+                request_length=len(request_text),
+                domain=route_decision.get("domain", "general"),
+                route_taken=route_decision.get("decision", Route.USE_MEDIUM).name
+                    if isinstance(route_decision.get("decision"), Route)
+                    else str(route_decision.get("decision", "")),
+                route_confidence=route_decision.get("confidence", 0.0),
+                response_length=len(response_text),
+                response_model=model_used,
+                response_latency_ms=latency_ms,
+            )
+            self.experiences.append(exp)
+            return exp
 
     # ─── Self-Training ────────────────────────────────────────────
 
@@ -862,55 +885,66 @@ class IntelligenceRoom:
 
     def save_state(self):
         """Persist knowledge and stats to disk."""
-        self.store.store_dir.mkdir(parents=True, exist_ok=True)
-        state_path = self.store.store_dir / "intelligence_state.json"
+        with self._lock:
+            self.store.store_dir.mkdir(parents=True, exist_ok=True)
+            state_path = self.store.store_dir / "intelligence_state.json"
 
-        data = {
-            "stats": self.stats,
-            "knowledge": [asdict(t) for t in self.knowledge.values()],
-            "experiences": [
-                asdict(e) for e in self.experiences[-1000:]  # Keep last 1000
-            ],
-        }
-        state_path.write_text(json.dumps(data, indent=2, default=str))
+            data = {
+                "stats": self.stats,
+                "knowledge": [asdict(t) for t in self.knowledge.values()],
+                "experiences": [
+                    asdict(e) for e in self.experiences[-1000:]  # Keep last 1000
+                ],
+            }
+            state_path.write_text(json.dumps(data, indent=2, default=str))
 
     # ─── Status ───────────────────────────────────────────────────
 
     def status(self) -> Dict[str, Any]:
         """Current state of the intelligence room."""
-        # Knowledge stats
-        domain_counts = defaultdict(int)
-        type_counts = defaultdict(int)
-        for tile in self.knowledge.values():
-            domain_counts[tile.domain] += 1
-            type_counts[tile.content_type] += 1
+        with self._lock:
+            # Knowledge stats
+            domain_counts = defaultdict(int)
+            type_counts = defaultdict(int)
+            for tile in self.knowledge.values():
+                domain_counts[tile.domain] += 1
+                type_counts[tile.content_type] += 1
 
-        # Experience stats
-        outcome_counts = defaultdict(int)
-        for exp in self.experiences:
-            outcome_counts[exp.outcome] += 1
+            # Experience stats
+            outcome_counts = defaultdict(int)
+            for exp in self.experiences:
+                outcome_counts[exp.outcome] += 1
 
-        total_tokens = self.stats["tokens_saved"]
-        llm_cost_per_1k = 0.005  # rough average
-        dollars_saved = total_tokens * llm_cost_per_1k / 1000
+            total_tokens = self.stats["tokens_saved"]
+            llm_cost_per_1k = 0.005  # rough average
+            dollars_saved = total_tokens * llm_cost_per_1k / 1000
 
-        return {
-            "total_requests": self.stats["total_requests"],
-            "knowledge_tiles": len(self.knowledge),
-            "knowledge_by_domain": dict(domain_counts),
-            "knowledge_by_type": dict(type_counts),
-            "experiences": len(self.experiences),
-            "outcomes": dict(outcome_counts),
-            "tokens_saved": total_tokens,
-            "dollars_saved": f"${dollars_saved:.2f}",
-            "llm_calls_saved": self.stats["llm_calls_saved"],
-            "self_train_cycles": self.stats["self_train_cycles"],
-            "avg_reuse": (
-                sum(t.reuse_count for t in self.knowledge.values())
-                / max(len(self.knowledge), 1)
-            ),
-        }
+            return {
+                "total_requests": self.stats["total_requests"],
+                "knowledge_tiles": len(self.knowledge),
+                "knowledge_by_domain": dict(domain_counts),
+                "knowledge_by_type": dict(type_counts),
+                "experiences": len(self.experiences),
+                "outcomes": dict(outcome_counts),
+                "tokens_saved": total_tokens,
+                "dollars_saved": f"${dollars_saved:.2f}",
+                "llm_calls_saved": self.stats["llm_calls_saved"],
+                "self_train_cycles": self.stats["self_train_cycles"],
+                "avg_reuse": (
+                    sum(t.reuse_count for t in self.knowledge.values())
+                    / max(len(self.knowledge), 1)
+                ),
+            }
 
     def _estimate_tokens(self, text: str) -> int:
         """Rough token estimate (4 chars per token)."""
         return len(text) // 4
+
+    def __repr__(self) -> str:
+        return (
+            f"{self.__class__.__name__}("
+            f"knowledge={len(self.knowledge)}, "
+            f"experiences={len(self.experiences)}, "
+            f"requests={self.stats['total_requests']})"
+        )
+

@@ -16,6 +16,9 @@ Low-rank is better for tasks needing sharp decision boundaries.
 Use the right tool for the right task.
 """
 
+
+__all__ = ['CompressionMethod', 'LowRankClassifier', 'LowRankLinear', 'VARIANT_GUIDE', 'inject_low_rank', 'recommend_variant']
+
 import torch
 import torch.nn as nn
 from typing import Optional, List, Dict
@@ -70,6 +73,10 @@ class LowRankLinear(nn.Module):
     def compression_ratio(self) -> float:
         return self.num_equivalent_dense_params() / max(self.num_low_rank_params(), 1)
 
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(in_features={self.in_features!r}, out_features={self.out_features!r}, rank={self.rank!r}, bias={self.bias!r}, init_scale={self.init_scale!r})"
+
+
 
 class LowRankClassifier(nn.Module):
     """Classifier using low-rank layers."""
@@ -87,6 +94,10 @@ class LowRankClassifier(nn.Module):
         x = self.dropout(x)
         x = self.relu(self.W_value(x))
         return self.out_head(x)
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(input_dim={self.input_dim!r}, hidden={self.hidden!r}, num_classes={self.num_classes!r}, rank={self.rank!r})"
+
 
 
 def inject_low_rank(

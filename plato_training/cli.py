@@ -9,8 +9,11 @@ Commands:
   serve     (future) Start HTTP API server
 """
 
+
+
 from __future__ import annotations
 
+__all__ = ['cmd_collective', 'cmd_gpt2_fleet', 'cmd_info', 'cmd_list', 'cmd_serve', 'cmd_throttle', 'cmd_train', 'main']
 import argparse
 import csv
 import json

@@ -26,6 +26,9 @@ Usage:
     X_train, y_train, X_val, y_val = room.split()
 """
 
+
+__all__ = ['DataRoom', 'DataSpec']
+
 import torch
 import numpy as np
 import json
@@ -352,3 +355,7 @@ class DataRoom:
             source="tensors",
         )
         return cls(X, y, spec)
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(X={self.X!r}, y={self.y!r}, spec={self.spec!r})"
+
