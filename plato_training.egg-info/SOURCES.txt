@@ -1,3 +1,4 @@
+LICENSE
 README.md
 pyproject.toml
 demos/semantic_tutor_demo.py

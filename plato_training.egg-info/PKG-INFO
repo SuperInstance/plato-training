@@ -5,6 +5,7 @@ Summary: PLATO Training Rooms — micro models for ensigns, deployed anywhere
 License: MIT
 Requires-Python: >=3.9
 Description-Content-Type: text/markdown
+License-File: LICENSE
 Provides-Extra: dev
 Requires-Dist: pytest>=7.0; extra == "dev"
 Provides-Extra: semantic
@@ -22,6 +23,7 @@ Requires-Dist: faiss-cpu; extra == "all"
 Requires-Dist: torch>=2.0; extra == "all"
 Requires-Dist: onnxruntime; extra == "all"
 Requires-Dist: onnx; extra == "all"
+Dynamic: license-file
 
 # plato-training
 
