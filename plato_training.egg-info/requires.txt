@@ -1,4 +1,22 @@
+
+[all]
+pytest>=7.0
+model2vec
+faiss-cpu
 torch>=2.0
+onnxruntime
+onnx
 
 [dev]
 pytest>=7.0
+
+[gpu]
+torch>=2.0
+
+[onnx]
+onnxruntime
+onnx
+
+[semantic]
+model2vec
+faiss-cpu

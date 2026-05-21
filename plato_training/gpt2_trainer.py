@@ -8,8 +8,11 @@ predicts next-hour activity per repo, and exports as a PLATO tile.
 Pure PyTorch CPU. Inference <1ms.
 """
 
+
+
 from __future__ import annotations
 import math
+__all__ = ['COUNT_TOKEN_OFFSET', 'CommitSequenceDataset', 'DAY_NAMES', 'DAY_TOKEN_OFFSET', 'HOUR_TOKEN_OFFSET', 'HourWindow', 'LANG_STOI', 'LANG_TOKEN_OFFSET', 'LANG_VOCAB', 'REPO_STOI', 'REPO_TOKEN_OFFSET', 'REPO_VOCAB', 'SPECIAL_TOKENS', 'TinyAttention', 'TinyBlock', 'TinyGPT2', 'TinyGPT2Config', 'TrainResult', 'VOCAB_SIZE', 'commits_to_hour_windows', 'count_to_bin', 'day_to_bin', 'encode_commit', 'encode_hour_window', 'evaluate_fleet_gpt2', 'export_tile', 'hour_to_bin', 'lang_to_token', 'load_tile_model', 'predict_next_hour', 'repo_to_token', 'train_fleet_gpt2', 'windows_to_sequences']
 import time
 import json
 import numpy as np
@@ -256,6 +259,10 @@ class CommitSequenceDataset(Dataset):
     def __getitem__(self, idx: int) -> Tuple[torch.Tensor, torch.Tensor]:
         return self.sequences[idx], self.targets[idx]
 
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(inputs={self.inputs!r}, targets={self.targets!r}, max_seq_len={self.max_seq_len!r})"
+
+
 
 # ─── Tiny GPT-2 for Classification ───────────────────────────────
 
@@ -322,6 +329,10 @@ class TinyAttention(nn.Module):
         y = y.transpose(1, 2).contiguous().view(B, T, C)
         return self.resid_drop(self.c_proj(y))
 
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(config={self.config!r})"
+
+
 
 class TinyBlock(nn.Module):
     """Transformer block."""
@@ -342,6 +353,10 @@ class TinyBlock(nn.Module):
         x = x + self.attn(self.ln1(x))
         x = x + self.mlp(self.ln2(x))
         return x
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(config={self.config!r})"
+
 
 
 class TinyGPT2(nn.Module):
@@ -416,6 +431,10 @@ class TinyGPT2(nn.Module):
         if labels is not None:
             result["loss"] = F.cross_entropy(logits, labels)
         return result
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(config={self.config!r})"
+
 
 
 # ─── Training ─────────────────────────────────────────────────────

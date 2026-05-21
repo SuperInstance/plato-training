@@ -20,6 +20,9 @@ Usage:
     # → {"invocations": 42, "accuracy": 0.95, "avg_latency_ms": 0.39}
 """
 
+
+__all__ = ['Invocation', 'MicroRoom', 'RoomFactory', 'RoomState', 'TASK_ACCURACY_FLOORS']
+
 import torch
 import numpy as np
 import time
@@ -274,6 +277,10 @@ class MicroRoom:
         from .hardware import generate_room_spec
         return generate_room_spec(self.task, self.target)
 
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(task={self.task!r}, target={self.target!r}, variant={self.variant!r}, room_id={self.room_id!r}, store_dir={self.store_dir!r})"
+
+
 
 class RoomFactory:
     """
@@ -309,3 +316,7 @@ class RoomFactory:
         """Save all room states."""
         for room in self.rooms.values():
             room.save()
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(store_dir={self.store_dir!r})"
+

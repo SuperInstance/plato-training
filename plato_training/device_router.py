@@ -9,7 +9,11 @@ Decision logic:
 - Training → ALWAYS CUDA GPU
 """
 
+
+__all__ = ['DeviceRouter', 'logger']
+
 import gc
+import threading
 import time
 import logging
 from typing import Any, Optional
@@ -25,6 +29,7 @@ class DeviceRouter:
     def __init__(self):
         import torch
         self.torch = torch
+        self._lock = threading.Lock()
         self.cuda_available = torch.cuda.is_available()
 
         # Try DirectML (AMD iGPU)
@@ -109,10 +114,11 @@ class DeviceRouter:
 
     def embed(self, text: str) -> 'np.ndarray':
         """Embed text on CPU. Fastest for single queries."""
-        if self._m2v_cls is not None:
-            if self._m2v_model is None:
-                self._m2v_model = self._m2v_cls.from_pretrained("minishlab/potion-base-8M")
-            return self._m2v_model.encode([text])[0]
+        with self._lock:
+            if self._m2v_cls is not None:
+                if self._m2v_model is None:
+                    self._m2v_model = self._m2v_cls.from_pretrained("minishlab/potion-base-8M")
+                return self._m2v_model.encode([text])[0]
         # Fallback: simple keyword hash vector
         return self._keyword_vector(text)
 
@@ -186,6 +192,11 @@ class DeviceRouter:
         model_size='large'  → CUDA GPU (AMP if available)
         model_size='auto'   → detect from parameter count
         """
+        with self._lock:
+            return self._infer_impl(model, x, model_size)
+
+    def _infer_impl(self, model, x, model_size):
+        """Execute inference on the appropriate device."""
         torch = self.torch
 
         if model_size == 'auto':
@@ -303,3 +314,7 @@ class DeviceRouter:
         # Restore model to CPU
         model.to('cpu')
         return results
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}()"
+

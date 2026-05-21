@@ -4,8 +4,11 @@ LoRA Factory Room — the key room type.
 Takes a base model + dataset → produces a LoRA adapter tile.
 """
 
+
+
 from __future__ import annotations
 import time
+__all__ = ['LoRAFactory']
 from typing import Optional, Dict, Any, List
 
 import torch
@@ -264,3 +267,7 @@ class LoRAFactory:
         )
         
         return tile
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(room_name={self.room_name!r}, base_model={self.base_model!r}, adapter_config={self.adapter_config!r}, training_config={self.training_config!r}, plato_host={self.plato_host!r})"
+

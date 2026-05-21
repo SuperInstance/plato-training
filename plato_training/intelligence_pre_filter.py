@@ -18,8 +18,11 @@ Self-learning:
     Trains on collected outcomes during idle periods.
 """
 
+
+
 from __future__ import annotations
 
+__all__ = ['Domain', 'FEATURE_DIM', 'IntentType', 'PreFilter', 'PreFilterModel', 'RequestFeatures', 'RouteTarget', 'RoutingDecision', 'Urgency', 'torch_softplus_inverse_approx']
 import io
 import json
 import math
@@ -58,6 +61,10 @@ class IntentType(Enum):
     CHAT = 6
     SYSTEM = 7
 
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}()"
+
+
 
 class Domain(Enum):
     CONSTRAINT_THEORY = 0
@@ -68,12 +75,20 @@ class Domain(Enum):
     MATH = 5
     RESEARCH = 6
 
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}()"
+
+
 
 class Urgency(Enum):
     LOW = 0
     MEDIUM = 1
     HIGH = 2
     CRITICAL = 3
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}()"
+
 
 
 class RouteTarget(Enum):
@@ -85,6 +100,10 @@ class RouteTarget(Enum):
     USE_LARGE = 5
     USE_REASONING = 6
     DELEGATE = 7
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}()"
+
 
 
 # ---------------------------------------------------------------------------
@@ -228,6 +247,10 @@ class PreFilterModel(nn.Module):
         confidence = torch.sigmoid(self.head_conf(h))
         token_log = self.head_tokens(h)
         return route_logits, confidence, token_log
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(n_control_points={self.n_control_points!r})"
+
 
 
 # ---------------------------------------------------------------------------
@@ -421,6 +444,10 @@ class PreFilter:
 
     def param_count(self) -> int:
         return sum(p.numel() for p in self.model.parameters())
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(n_control_points={self.n_control_points!r}, learning_rate={self.learning_rate!r}, device={self.device!r})"
+
 
 
 # ---------------------------------------------------------------------------

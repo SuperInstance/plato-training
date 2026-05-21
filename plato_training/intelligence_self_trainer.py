@@ -8,8 +8,11 @@ weights as PLATO tiles.
 Pure numpy/torch, Python 3.10+, thread-safe experience buffer.
 """
 
+
+
 from __future__ import annotations
 
+__all__ = ['DataAugmentor', 'Experience', 'ExperienceBuffer', 'FilterMetrics', 'IdleDetector', 'OUTCOMES', 'REQUEST_DIM', 'RESPONSE_DIM', 'SelfTrainer', 'TrainingCycleMetrics', 'logger']
 import hashlib
 import json
 import logging
@@ -125,6 +128,10 @@ class ExperienceBuffer:
             outcomes[e.outcome] = outcomes.get(e.outcome, 0) + 1
         return {"count": len(snap), "outcomes": outcomes}
 
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(max_size={self.max_size!r})"
+
+
 
 # ---------------------------------------------------------------------------
 # DataAugmentor — synthetic training data generation
@@ -239,6 +246,10 @@ class DataAugmentor:
             result.extend(self.adversarial(experiences, model_predict, n=20))
         return result
 
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(seed={self.seed!r})"
+
+
 
 # ---------------------------------------------------------------------------
 # TrainingMetrics — tracks improvement over time
@@ -304,6 +315,10 @@ class IdleDetector:
     def last_activity_age(self) -> float:
         with self._lock:
             return time.time() - self._last_activity
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(idle_threshold_seconds={self.idle_threshold_seconds!r}, cpu_threshold={self.cpu_threshold!r})"
+
 
 
 # ---------------------------------------------------------------------------
@@ -575,3 +590,7 @@ class SelfTrainer:
     @property
     def metrics_history(self) -> List[TrainingCycleMetrics]:
         return list(self._metrics_history)
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(store_dir={self.store_dir!r}, buffer_size={self.buffer_size!r}, improvement_threshold={self.improvement_threshold!r}, min_experiences={self.min_experiences!r})"
+

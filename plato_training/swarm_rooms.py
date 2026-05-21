@@ -24,6 +24,9 @@ Key experiments:
   5. GPU parallelism: can we scale to 10K+ rooms on one GPU?
 """
 
+
+__all__ = ['EISENSTEIN_OMEGA', 'RoomState', 'SwarmRoomNetwork', 'eisenstein_delta_gpu', 'eisenstein_snap_gpu', 'main', 'run_crdt_convergence_test', 'run_deadband_experiment', 'run_density_experiment', 'run_scaling_experiment']
+
 import torch
 import torch.nn.functional as F
 import numpy as np
@@ -131,6 +134,10 @@ class RoomState:
         # CRDT merge: weighted average with clock-based ordering
         self.obs_buffer = 0.9 * self.obs_buffer + 0.1 * other_context
         self.clock = max(self.clock, self.clock) + 1
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(room_id={self.room_id!r}, context_dim={self.context_dim!r}, obs_dim={self.obs_dim!r}, device={self.device!r})"
+
 
 
 # ─── Swarm Room Network (GPU) ───────────────────────────────────────
@@ -331,6 +338,10 @@ class SwarmRoomNetwork:
             "mean_snap_hit_rate": np.mean([m["snap_hit_rate"] for m in metrics_list]),
             "mean_context_diversity": np.mean([m["context_diversity"] for m in metrics_list]),
         }
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(n_agents={self.n_agents!r}, context_dim={self.context_dim!r}, obs_dim={self.obs_dim!r}, device={self.device!r}, interconnection_density={self.interconnection_density!r})"
+
 
 
 # ─── Scaling Experiments ─────────────────────────────────────────────

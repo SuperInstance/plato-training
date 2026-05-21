@@ -19,8 +19,11 @@ inject_spline         Replace all nn.Linear layers in a model in-place.
 compression_ratio     Dense-equivalent param count ÷ actual spline param count.
 """
 
+
+
 from __future__ import annotations
 
+__all__ = ['EisensteinLattice', 'SplineLinear', 'compression_ratio', 'inject_spline']
 import math
 from typing import Dict, List, Optional, Set, Tuple
 
@@ -444,6 +447,10 @@ class SplineLinear(nn.Module):
             f"basis='{self.basis}', "
             f"bias={self.bias is not None}"
         )
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(in_features={self.in_features!r}, out_features={self.out_features!r}, n_control_points={self.n_control_points!r}, basis={self.basis!r}, bias={self.bias!r})"
+
 
 
 # ---------------------------------------------------------------------------

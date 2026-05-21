@@ -16,6 +16,9 @@ This feeds into collective inference rooms:
   - Gap: when predictions miss → that's signal
 """
 
+
+__all__ = ['CROSS_REF_PATTERNS', 'CommitPoint', 'FLEET_REPOS', 'FleetMiner', 'RepoSignal', 'SynergyEvent']
+
 import subprocess
 import json
 import time
@@ -417,3 +420,7 @@ class FleetMiner:
             lines.append("  (no cross-repo references found)")
         
         return "\n".join(lines)
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(org={self.org!r}, token={self.token!r}, clone_dir={self.clone_dir!r})"
+

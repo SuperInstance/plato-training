@@ -12,6 +12,9 @@ into a running system that:
 This is the bridge from static data mining to live collective intelligence.
 """
 
+
+__all__ = ['CollectiveLoop', 'CycleResult', 'PredictionEntry', 'compute_repo_velocity', 'detect_activity_spike', 'main', 'predict_commit_probability']
+
 import json
 import time
 import math
@@ -645,6 +648,10 @@ class CollectiveLoop:
                 "final_propagation": swarm_metrics[-1]["propagation_rate"],
             },
         }
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(github_token={self.github_token!r}, plato_url={self.plato_url!r}, clone_dir={self.clone_dir!r}, history_file={self.history_file!r}, org={self.org!r})"
+
 
 # ─── CLI Entry Point ────────────────────────────────────────────────
 

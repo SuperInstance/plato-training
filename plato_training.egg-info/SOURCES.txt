@@ -29,6 +29,7 @@ plato_training/micro_room.py
 plato_training/npu_bridge.py
 plato_training/onnx_export.py
 plato_training/plato_forge.py
+plato_training/py.typed
 plato_training/pytorch_room.py
 plato_training/semantic_matcher.py
 plato_training/semantic_store.py

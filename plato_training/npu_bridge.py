@@ -9,6 +9,9 @@ When the Ryzen AI SDK is installed on Windows, this module:
 Falls back gracefully if NPU is unavailable.
 """
 
+
+__all__ = ['NPUBridge', 'POWERSHELL', 'bridge']
+
 import subprocess
 import json
 import os
@@ -175,6 +178,10 @@ class NPUBridge:
                 input_data = {name: dummy_input.numpy()}
 
             return self.run_inference(onnx_path, input_data)
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}()"
+
 
 
 # Singleton for easy import

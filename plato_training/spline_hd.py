@@ -13,8 +13,11 @@ AdaptiveCompression  Per-block compression measurement and selection.
 EmbeddingBenchmark   Benchmark runner for synthetic embeddings.
 """
 
+
+
 from __future__ import annotations
 
+__all__ = ['AdaptiveCompression', 'AdaptiveLinear', 'BlockDecomposition', 'EmbeddingBenchmark', 'SplineLinearHD']
 import math
 import time
 from typing import Dict, List, Optional, Tuple
@@ -369,6 +372,10 @@ class SplineLinearHD(nn.Module):
             f"bias={self.bias is not None}"
         )
 
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(in_features={self.in_features!r}, out_features={self.out_features!r}, block_size={self.block_size!r}, overlap={self.overlap!r}, n_control_points={self.n_control_points!r})"
+
+
 
 # ---------------------------------------------------------------------------
 # AdaptiveCompression
@@ -498,6 +505,10 @@ class AdaptiveCompression:
             basis=basis,
         )
 
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(decomp={self.decomp!r}, aggressive_threshold={self.aggressive_threshold!r}, passthrough_threshold={self.passthrough_threshold!r})"
+
+
 
 class AdaptiveLinear(nn.Module):
     """
@@ -564,6 +575,10 @@ class AdaptiveLinear(nn.Module):
 
     def compression_ratio(self) -> float:
         return float(self.num_equivalent_dense_params()) / max(self.num_trainable_params(), 1)
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(decomp={self.decomp!r}, out_features={self.out_features!r}, control_points_per_block={self.control_points_per_block!r}, strategies={self.strategies!r}, basis={self.basis!r})"
+
 
 
 # ---------------------------------------------------------------------------
@@ -806,3 +821,7 @@ class EmbeddingBenchmark:
 
         lines.append(f"{'='*70}")
         return "\n".join(lines)
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(dimensions={self.dimensions!r}, block_size={self.block_size!r}, n_control_points={self.n_control_points!r}, n_classes={self.n_classes!r}, n_samples={self.n_samples!r})"
+

@@ -22,8 +22,11 @@ Usage:
     tile = forge.export_tile(model, room="my-room")
 """
 
+
+
 from __future__ import annotations
 import os
+__all__ = ['ForgeConfig', 'ForgeStepResult', 'PlatoForge', 'PyForge']
 import time
 import ctypes
 import subprocess
@@ -397,6 +400,10 @@ class PyForge:
         store.save(tile)
         return tile
 
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(config={self.config!r})"
+
+
 
 # ─── High-level API ─────────────────────────────────────────────
 
@@ -474,3 +481,7 @@ class PlatoForge:
             "throttle": self.impl.throttle_stats,
             "config": asdict(self.config),
         }
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(config={self.config!r})"
+

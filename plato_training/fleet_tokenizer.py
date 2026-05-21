@@ -5,6 +5,9 @@ Trains a Byte-Pair Encoding tokenizer on all commit messages from workspace repo
 then saves it for use in the Eisenstein encoder and other PLATO modules.
 """
 
+
+__all__ = ['collect_commit_messages', 'load_fleet_bpe', 'train_fleet_bpe']
+
 import os
 import subprocess
 from pathlib import Path
