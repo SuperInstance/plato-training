@@ -11,5 +11,5 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
-      - run: pip install -e . pytest
+      - run: pip install -e ".[all]" pytest torch numpy
       - run: python -m pytest tests/ -v --tb=short
