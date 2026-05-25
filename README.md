@@ -1,178 +1,278 @@
 # plato-training
 
-[![Tests](https://img.shields.io/github/actions/workflow/status/SuperInstance/plato-training/tests.yml?branch=master)](https://github.com/SuperInstance/plato-training/actions)
-[![Version](https://img.shields.io/pypi/v/plato-training)](https://pypi.org/project/plato-training/)
-[![License](https://img.shields.io/github/license/SuperInstance/plato-training)](https://github.com/SuperInstance/plato-training/blob/master/LICENSE)
-[![Python](https://img.shields.io/badge/python-3.10%2B-blue)]()
+**PLATO Training Rooms — LoRA adapters with lifecycle management, micro models for agents, deployed anywhere.**
 
-> **Train micro models from fleet data. Deploy them anywhere.** Tiles carry the intelligence — small models + good procedures beat large models working from scratch.
+A Python library for training, versioning, and deploying LoRA adapters and micro models as PLATO tiles. Includes throttle-aware training, Eisenstein spline layers, hardware-aware deployment, and an Intelligence Room that distills LLM knowledge into self-improving micro models.
 
-**Status: Early-stage research.** 773 tests, 16K+ lines of Python, real fleet data flowing end-to-end. Everything works. Nothing is production-hardened.
+## How It Works
 
----
+Every training run is a PLATO room. Every artifact is a tile with a lifecycle (Active → Superseded → Archived). Training is a background citizen of the fleet — the throttle mechanism adjusts batch sizes and GPU usage based on fleet load.
 
-## Quick Start (30 seconds)
+```
+┌─────────────────────────────────────────────────┐
+│              PLATO Room Protocol                 │
+│  Tiles · Lifecycle · Lamport Clock · Throttle   │
+└────────┬────────────────────┬───────────────────┘
+         │                    │
+   ┌─────▼─────┐      ┌──────▼──────┐
+   │ PyTorch   │      │ TensorFlow  │
+   │ Room      │      │ Room        │
+   └─────┬─────┘      └──────┬──────┘
+         │                    │
+   ┌─────▼────────────────────▼──────┐
+   │   Tensor-Spline Platform        │
+   │   (Eisenstein, Low-Rank, HD)    │
+   └─────────────────────────────────┘
+```
+
+## Installation
 
 ```bash
-pip install plato-training
+pip install -e .
+
+# With optional extras:
+pip install -e ".[gpu]"       # PyTorch
+pip install -e ".[semantic]"  # Model2Vec + FAISS for semantic matching
+pip install -e ".[onnx]"      # ONNX export
+pip install -e ".[all]"       # Everything
+```
+
+**Requirements:** Python ≥ 3.9. Core has no required dependencies (graceful fallbacks).
+
+## Quick Start
+
+### LoRA Adapter Training
+
+```python
+from plato_training import (
+    LoRAFactory, LoRALayer, inject_lora,
+    AdapterConfig, TrainingConfig,
+)
+
+# Inject LoRA into any nn.Module
+model = ...  # your PyTorch model
+injection_map = inject_lora(model, rank=8, alpha=16)
+
+# Or use the factory for full lifecycle management
+factory = LoRAFactory("spam-detector")
+factory.configure(
+    base_model=model,
+    adapter_config=AdapterConfig(rank=8, alpha=16),
+    training_config=TrainingConfig(epochs=10, learning_rate=1e-4),
+)
+adapter_tile = factory.train(train_loader, val_loader)
+```
+
+### Eisenstein Spline Layers
+
+Novel weight parameterization on the A₂ Eisenstein lattice. Compresses smoothly varying weights with provable structure.
+
+```python
+from plato_training import SplineLinear, inject_spline, compression_ratio
+
+# Replace linear layers with spline-parameterized variants
+inject_spline(model, control_points=8)
+
+# Or use directly
+layer = SplineLinear(in_features=256, out_features=128, control_points=8)
+output = layer(input_tensor)
+
+# Check compression
+ratio = compression_ratio(layer)
+print(f"Spline compression: {ratio:.1f}x")
+```
+
+### Micro Models
+
+Train tiny models for agent skills and deploy to any hardware target:
+
+```python
+from plato_training import train_micro, deploy_micro, list_tasks
+
+# See available tasks
+tasks = list_tasks()
+# ["drift-detect", "anomaly-flag", "intent-detect", "sentiment", ...]
+
+# Train a micro model
+model = train_micro("drift-detect")
+
+# Deploy to hardware
+deployed = deploy_micro(model, target="npu")
+result = deployed.predict(sensor_data)
+```
+
+### Intelligence Room
+
+Distills LLM knowledge into self-improving micro models. Every LLM call is a training opportunity:
+
+```
+Request ──► PreFilter (micro) ──► [LLM?] ──► PostFilter (micro) ──► Response
+                  │                                   │
+                  ▼                                   ▼
+           Routing Decision                     Knowledge Tiles
+           (skip unnecessary calls)             (facts, patterns)
 ```
 
 ```python
-from plato_training.micro_models import train_micro
-from plato_training.hardware import deploy_micro
+from plato_training import IntelligenceRoom
 
-# Train a micro model on a fleet task
-model, tile, metrics = train_micro("drift-detect")
-
-# Deploy to any hardware target (cpu, gpu, npu, wasm)
-deployed = deploy_micro("drift-detect", target="npu")
-print(f"Accuracy: {deployed.metrics['accuracy']:.1%}")  # 100%
-print(f"Latency: {deployed.latency_ms:.2f}ms")           # <1ms
+room = IntelligenceRoom("main-intel")
+response = room.route("explain the Eisenstein lattice")
+# Pre-filter learns to skip LLM for known topics
+# Post-filter extracts knowledge tiles from responses
+# Self-trainer retrains micro models during idle time
 ```
 
-Need more? See [demos/](demos/) for full examples.
+## Core Components
 
----
+### Training Tiles
 
-## What's Inside
+Every artifact is a tile with full provenance:
 
-### Training
+```python
+from plato_training import TrainingTile, TileType, TileLifecycle
 
-| Module | Purpose |
-|--------|---------|
-| `spline.py` | SplineLinear compression — 5-20× size reduction at identical accuracy |
-| `gpt2_trainer.py` | GPT-2 micro-model trainer (416K params on fleet data) |
-| `gpu_fleet_trainer.py` | GPU fleet training orchestrator |
-| `collective.py` | Collective inference primitives |
-| `throttle.py` | Fleet-aware training throttle |
-| `micro_models.py` | 8 room tasks + training pipeline |
-| `collective_loop.py` | Multi-agent collective inference (predict → listen → compare → gap → learn → share) |
-| `gpt2_room.py` | GPT-2 training room — attention, BPE, next-token prediction |
-| `micro_room.py` | Micro training room |
-| `pytorch_room.py` | PyTorch room (LoRA + throttle) |
-| `tensorflow_room.py` | TensorFlow room (Keras + throttle) |
-
-### Semantic
-
-| Module | Purpose |
-|--------|---------|
-| `tutor_judge.py` | TUTOR-style bitvector matching — 93.8% accuracy, zero ML |
-| `semantic_store.py` | Model2Vec + FAISS semantic retrieval |
-| `semantic_matcher.py` | SemanticMatcher for knowledge Q&A across tile corpora |
-| `eisenstein_encoder.py` | Tiny contrastive encoder (71.2% hit rate, 627KB) |
-| `intelligence_room.py` | 4-tier cascade matching (bitvector → fuzzy → semantic → LLM) |
-| `intelligence_pre_filter.py` | Pre-filter for intelligence room |
-| `intelligence_post_filter.py` | Post-filter for intelligence room |
-| `intelligence_self_trainer.py` | Self-training loop for intelligence room |
-
-### Infrastructure
-
-| Module | Purpose |
-|--------|---------|
-| `device_router.py` | Heterogeneous compute router — dispatch to CPU/GPU/NPU/WASM |
-| `onnx_export.py` | ONNX export pipeline for Eisenstein & SplineLinear models |
-| `npu_bridge.py` | NPU bridge for edge deployment |
-| `cli.py` | `plato-train` command-line interface |
-| `hardware.py` | 8 hardware targets, deploy pipeline |
-| `spline_hd.py` | High-dimensional SplineLinear (Eisenstein lattice) |
-| `hierarchical_spline.py` | Hierarchical spline layers |
-| `low_rank.py` | Low-rank linear layers |
-| `fleet_miner.py` | Git history miner for SuperInstance repos |
-| `data_pipeline.py` | Fleet data ingestion, feature extraction (30+ features/commit) |
-| `fleet_tokenizer.py` | BPE tokenizer trained on fleet corpus |
-| `triplet_miner.py` | Triplet dataset miner from git history |
-| `data_rooms.py` | Data loading rooms |
-| `store.py` | Content-addressed tile store |
-| `plato_forge.py` | Tile forge — compile tiles from procedures |
-| `i2i.py` | Instance-to-instance protocol |
-
-### Simulation
-
-| Module | Purpose |
-|--------|---------|
-| `swarm_rooms.py` | GPU-accelerated multi-agent simulation |
-| `agent_field.py` | Agent field dynamics |
-| `commit_predictor.py` | Predict commit patterns from fleet data |
-
----
-
-## Fleet Results (48 configs: 8 tasks × 6 targets)
-
-```
-Task                  cpu   cpu-tiny   cpu-fast      gpu      npu      wasm
-drift-detect       100%     100%      100%       99%     100%     100%
-intent-detect      100%      75%      100%       93%     100%     100%
-topic-classify     100%      29%      100%       59%     100%      34%
-anomaly-flag        90%      84%       90%       84%      93%      93%
-sentiment           92%      74%       70%       84%      92%      88%
+tile = TrainingTile(
+    name="drift-detect-v3",
+    tile_type=TileType.ADAPTER,
+    lifecycle=TileLifecycle.ACTIVE,
+)
 ```
 
-**28 of 48 configs above 70% accuracy.** SplineLinear: 20× size reduction at identical accuracy. NPU INT8: maintains 100% on drift-detect and intent-detect.
+Tile types: `DATASET`, `CONFIG`, `CHECKPOINT`, `METRICS`, `ADAPTER`, `PREDICTION`
+Lifecycle: `ACTIVE` → `SUPERSEDED` → `ARCHIVED`
 
-**Honest breakdown:**
-- **Strong (>90%):** drift-detect, intent-detect (most targets), anomaly-flag on NPU
-- **Medium (70-90%):** anomaly-flag (cpu/gpu), sentiment (cpu/npu)
-- **Weak (<70%):** topic-classify on cpu-tiny/gpu/wasm, sentiment on cpu-fast/cpu-tiny
+### Throttle
 
----
+Training adjusts to fleet load:
 
-## What's Real vs. What's Aspirational
+```python
+from plato_training import TrainingThrottle
 
-**Real and tested:**
-- 773 tests · SplineLinear 20× compression · 48 fleet deployment configs
-- GPT-2 trainer on real fleet commit data (416K params)
-- Collective inference loop · Sub-millisecond CPU inference
+throttle = TrainingThrottle()
+state = throttle.check()
+# ThrottleLevel.FULL    (0-2 rooms active) → full GPU
+# ThrottleLevel.REDUCED (3-5 rooms)        → smaller batches
+# ThrottleLevel.MINIMAL (6-9 rooms)        → minimal resources
+# ThrottleLevel.PAUSED  (10+ rooms)        → stop training
+```
 
-**Research in progress:**
-- Real-world data pipelines (currently synthetic + fleet commits)
-- SplineLinear scaling beyond drift-detect
-- Production NPU deployment (tested in simulation)
-- LoRA on real data
+### LoRA Adapters
 
-**Honest limitations:**
-- Synthetic training data inflates accuracy numbers
-- No real edge hardware deployments yet (all simulation)
-- GPT-2 trainer is research-grade, not production
-- The accumulation effect is demonstrated but not yet measured over many cycles
+Full LoRA implementation with save/load round-trip:
 
----
+```python
+from plato_training import LoRALayer, save_lora_weights, load_lora_weights
+
+# Merge adapter back into base model
+merged = lora_layer.merge()
+
+# Save/load (supports safetensors)
+save_lora_weights(model, injection_map, "adapter.safetensors")
+load_lora_weights(model, injection_map, "adapter.safetensors")
+```
+
+### Novel Layers
+
+| Layer | Use Case | File |
+|-------|----------|------|
+| `SplineLinear` | Smooth tasks, Eisenstein lattice weights | `spline.py` |
+| `LowRankLinear` | Classification, factorized weights | `low_rank.py` |
+| `HierarchicalSplineLinear` | High-dimensional multi-scale | `hierarchical_spline.py` |
+
+### Hardware Deployment
+
+```python
+from plato_training import deploy_micro, PROFILES
+
+# Hardware profiles: cpu-tiny, cpu-medium, gpu-small, npu
+deployed = deploy_micro(model, target="cpu-tiny")
+spec = generate_room_spec(model, target="npu")
+```
+
+### ONNX Export
+
+```python
+from plato_training import export_eisenstein, benchmark_onnx_vs_pytorch
+
+export_eisenstein(model, "model.onnx")
+benchmark_onnx_vs_pytorch(model, test_input)
+```
+
+### NPU Bridge
+
+```python
+from plato_training import npu_bridge
+
+result = npu_bridge.run_inference(model, input_data, target="npu")
+```
+
+## CLI
+
+```bash
+plato-train train --room my-model --data data.csv
+plato-train list
+plato-train deploy --model my-model --target npu
+```
+
+## Data Pipeline
+
+```python
+from plato_training import DataRoom, DataSpec
+
+spec = DataSpec(
+    name="training-data",
+    format="csv",
+    columns=["text", "label"],
+)
+data_room = DataRoom(spec)
+```
+
+## Testing
+
+```bash
+pytest plato_training/tests/ tests/ --tb=short
+```
 
 ## Architecture
 
-Four independent packages, each installable and testable standalone:
-
 ```
-plato-types          Tile lifecycle, Lamport clocks, provenance tracking
-tensor-spline        SplineLinear, LowRankLinear, Hierarchical compression
-plato-data           CSV/JSONL/PLATO/fleet data loading
-plato-training       Orchestrates everything — micro models, collective, deploy
+plato_training/
+├── __init__.py              # Public API, all exports
+├── types.py                 # TrainingTile, TileLifecycle, LamportClock, configs
+├── adapters/
+│   └── lora.py              # LoRALayer, inject_lora, save/load
+├── rooms/
+│   └── lora_factory.py      # LoRAFactory — full training lifecycle
+├── store.py                 # LocalTileStore
+├── throttle.py              # TrainingThrottle, ThrottleLevel
+├── pytorch_room.py          # PyTorchRoom
+├── tensorflow_room.py       # TensorFlowRoom
+├── spline.py                # SplineLinear, EisensteinLattice
+├── low_rank.py              # LowRankLinear, LowRankClassifier
+├── hierarchical_spline.py   # HierarchicalSplineLinear
+├── micro_models.py          # train_micro, TASK_REGISTRY
+├── micro_room.py            # MicroRoom, RoomFactory
+├── hardware.py              # deploy_micro, PROFILES
+├── data_rooms.py            # DataRoom, DataSpec
+├── intelligence_room.py     # IntelligenceRoom — LLM distillation
+├── semantic_matcher.py      # SemanticMatcher (Model2Vec + FAISS)
+├── collective.py            # Simulation-first collective inference
+├── eisenstein_encoder.py    # Eisenstein integer encoding
+├── fleet_tokenizer.py       # BPE tokenizer for fleet
+├── onnx_export.py           # ONNX export + benchmarking
+├── npu_bridge.py            # NPU inference bridge
+├── agent_field.py           # Agent field dynamics
+├── i2i.py                   # Instance-to-instance communication
+└── cli.py                   # Command-line interface
 ```
 
-```bash
-# Optional sibling packages
-pip install tensor-spline plato-data plato-types
-```
+## Related Repos
 
----
-
-## Documentation
-
-- [Philosophy & Theory](docs/PHILOSOPHY.md) — tiles as procedures, capability ladder, accumulation effect, Three-Structure Theorem
-- [Semantic Tutor Architecture](docs/SEMANTIC-TUTOR-ARCHITECTURE.md)
-- [Heterogeneous Compute](docs/HETEROGENEOUS-COMPUTE.md)
-- [Eisenstein Encoder Results](docs/EISENSTEIN-ENCODER-RESULTS.md)
-
-## Ecosystem
-
-| Repo | Purpose |
-|------|---------|
-| [plato-types](https://github.com/SuperInstance/plato-types) | Tile lifecycle, Lamport clocks |
-| [tensor-spline](https://github.com/SuperInstance/tensor-spline) | SplineLinear 20× compression |
-| [plato-data](https://github.com/SuperInstance/plato-data) | Data loading for PLATO rooms |
-| [plato-model-ocean](https://github.com/SuperInstance/plato-model-ocean) | Evolving ecosystem of micro models |
-| [plato-escalation-gate](https://github.com/SuperInstance/plato-escalation-gate) | When to escalate from micro → LLM (737 params) |
-| [constraint-theory-ecosystem](https://github.com/SuperInstance/constraint-theory-ecosystem) | Theoretical foundations, TILE-IS-THE-PROCEDURE |
-| [eisenstein-embed](https://github.com/SuperInstance/eisenstein-embed) | 5-layer semantic matching cascade |
+- **[collective-ai](https://github.com/SuperInstance/collective-ai)** — Extracted collective inference library
+- **[fleet-router](https://github.com/SuperInstance/fleet-router)** — Route AI queries to the cheapest model that won't break
+- **[snapkit-python](https://github.com/SuperInstance/snapkit-python)** — Tolerance-compressed attention allocation
+- **[SuperInstance-papers](https://github.com/SuperInstance/SuperInstance-papers)** — 72+ research white papers
 
 ## License
 
