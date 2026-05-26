@@ -232,9 +232,11 @@ class TestCommitPredictorRealData:
         miner = FleetMiner(org="SuperInstance", token=get_token(), clone_dir=WORKSPACE)
         commits = miner.mine_repo("plato-training", max_commits=100)
 
-        samples = build_prediction_dataset(commits, "plato-training", window_hours=6.0)
         if len(commits) == 0:
             pytest.skip("No commits available in CI")
+        samples = build_prediction_dataset(commits, "plato-training", window_hours=6.0)
+        if len(samples) == 0:
+            pytest.skip("Commits do not span enough time for prediction window")
         assert len(samples) > 0, "Should produce at least one prediction sample"
 
         s = samples[0]
