@@ -266,6 +266,10 @@ class TestForgeIntegration:
 
 class TestGPUFleetIntegration:
     def test_train_and_predict(self):
+        pytest.importorskip("torch")
+        import torch
+        if not torch.cuda.is_available():
+            pytest.skip("No CUDA GPU available")
         from plato_training.fleet_miner import CommitPoint
         from plato_training.gpu_fleet_trainer import train_gpu_fleet, predict_fleet_gpu, GPUFleetConfig
 

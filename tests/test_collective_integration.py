@@ -233,6 +233,8 @@ class TestCommitPredictorRealData:
         commits = miner.mine_repo("plato-training", max_commits=100)
 
         samples = build_prediction_dataset(commits, "plato-training", window_hours=6.0)
+        if len(commits) == 0:
+            pytest.skip("No commits available in CI")
         assert len(samples) > 0, "Should produce at least one prediction sample"
 
         s = samples[0]

@@ -663,6 +663,32 @@ def cmd_collective(args: argparse.Namespace) -> int:
     """Run collective inference loop against fleet repos."""
     from .collective_loop import CollectiveLoop
 
+    # ── status mode doesn't need a token or loop ───────────────────
+    if args.mode == "status":
+        import json as _json
+        hist = Path(args.history)
+        if not hist.exists():
+            print("[collective] No history file found. Run 'collective once' first.")
+            return 0
+        data = _json.loads(hist.read_text())
+        cycles = data.get("cycle_count", 0)
+        gap = data.get("cumulative_gap", 0.0)
+        pending = len(data.get("pending_predictions", []))
+        last_ts = data.get("last_cycle", 0)
+        from datetime import datetime as _dt, timezone as _tz
+        last_str = _dt.fromtimestamp(last_ts, tz=_tz.utc).isoformat() if last_ts else "never"
+        baseline = data.get("baseline_velocity", {})
+        print(f"[collective] Status:")
+        print(f"  cycles_run     {cycles}")
+        print(f"  cumulative_gap {gap:.4f}")
+        print(f"  pending_preds  {pending}")
+        print(f"  last_cycle     {last_str}")
+        if baseline:
+            print(f"  velocity ({len(baseline)} repos):")
+            for repo, vel in sorted(baseline.items(), key=lambda x: -x[1])[:10]:
+                print(f"    {repo:30s} λ={vel:.2f}/hr")
+        return 0
+
     token_path = Path.home() / ".openclaw/workspace/.credentials/github-pat.txt"
     token = None
     if token_path.exists():
@@ -695,31 +721,6 @@ def cmd_collective(args: argparse.Namespace) -> int:
             max_cycles=args.cycles,
             repos=repos,
         )
-        return 0
-
-    elif args.mode == "status":
-        import json as _json
-        hist = Path(args.history)
-        if not hist.exists():
-            print("[collective] No history file found. Run 'collective once' first.")
-            return 0
-        data = _json.loads(hist.read_text())
-        cycles = data.get("cycle_count", 0)
-        gap = data.get("cumulative_gap", 0.0)
-        pending = len(data.get("pending_predictions", []))
-        last_ts = data.get("last_cycle", 0)
-        from datetime import datetime as _dt, timezone as _tz
-        last_str = _dt.fromtimestamp(last_ts, tz=_tz.utc).isoformat() if last_ts else "never"
-        baseline = data.get("baseline_velocity", {})
-        print(f"[collective] Status:")
-        print(f"  cycles_run     {cycles}")
-        print(f"  cumulative_gap {gap:.4f}")
-        print(f"  pending_preds  {pending}")
-        print(f"  last_cycle     {last_str}")
-        if baseline:
-            print(f"  velocity ({len(baseline)} repos):")
-            for repo, vel in sorted(baseline.items(), key=lambda x: -x[1])[:10]:
-                print(f"    {repo:30s} λ={vel:.2f}/hr")
         return 0
 
     print(f"error: unknown mode '{args.mode}'. Use: once, run, status", file=sys.stderr)

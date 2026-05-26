@@ -209,6 +209,7 @@ class TestSizeReport:
 
 class TestONNXExport:
     def test_export_eisenstein_via_pipeline(self):
+        pytest.importorskip("onnxscript", reason="onnxscript required for torch.onnx.export")
         try:
             from plato_training.onnx_export import export_eisenstein, validate_numerical_parity
             import onnxruntime as ort
@@ -233,6 +234,7 @@ class TestONNXExport:
         gc.collect()
 
     def test_export_spline_via_pipeline(self):
+        pytest.importorskip("onnxscript", reason="onnxscript required for torch.onnx.export")
         try:
             from plato_training.onnx_export import export_spline, validate_numerical_parity
             import onnxruntime as ort
@@ -257,6 +259,7 @@ class TestONNXExport:
         gc.collect()
 
     def test_dynamic_axes_variable_batch(self):
+        pytest.importorskip("onnxscript", reason="onnxscript required for torch.onnx.export")
         try:
             from plato_training.onnx_export import export_eisenstein
             import onnxruntime as ort
