@@ -17,6 +17,7 @@ pip install plato-training
 ```
 
 ## How It Fits
+- [OpenConstruct Documentation](https://github.com/SuperInstance/openconstruct-docs) — ecosystem-wide docs and guides
 
 The training infrastructure in the PLATO stack: `plato-room` (rooms) → `plato-training` (training scenarios) → `plato-sandbox` (safe execution). Feeds trained agents into `plato-fleet` for deployment.
 
